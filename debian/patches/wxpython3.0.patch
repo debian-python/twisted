@@ -1,0 +1,32 @@
+Description: Update for wxPython 3.0
+ These changes should remain compatible with wxPython 2.8.
+Author: Olly Betts <olly@survex.com>
+Bug-Debian: https://bugs.debian.org/759073
+Forwarded: no
+Last-Update: 2014-09-20
+
+--- twisted-14.0.0.orig/twisted/internet/wxreactor.py
++++ twisted-14.0.0/twisted/internet/wxreactor.py
+@@ -25,11 +25,11 @@ real applications.
+ 
+ import Queue
+ try:
+-    from wx import PySimpleApp as wxPySimpleApp, CallAfter as wxCallAfter, \
++    from wx import App as wxApp, CallAfter as wxCallAfter, \
+          Timer as wxTimer
+ except ImportError:
+     # older version of wxPython:
+-    from wxPython.wx import wxPySimpleApp, wxCallAfter, wxTimer
++    from wxPython.wx import wxApp, wxCallAfter, wxTimer
+ 
+ from twisted.python import log, runtime
+ from twisted.internet import _threadedselect
+@@ -125,7 +125,7 @@ class WxReactor(_threadedselect.Threaded
+         if not hasattr(self, "wxapp"):
+             log.msg("registerWxApp() was not called on reactor, "
+                     "registering my own wxApp instance.")
+-            self.registerWxApp(wxPySimpleApp())
++            self.registerWxApp(wxApp(False))
+ 
+         # start select() thread:
+         self.interleave(self._runInMainThread,

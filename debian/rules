@@ -1,0 +1,174 @@
+#! /usr/bin/make -f
+
+SHELL = /bin/bash
+
+# all versions
+PYVERS	:= $(shell pyversions -vs)
+VER	:= $(shell /usr/bin/python -c 'import sys; print sys.version[:3]')
+DEBVERS := $(shell dpkg-parsechangelog | sed -n -e 's/^Version: //p')
+
+twversion := $(subst twisted-,,$(notdir $(CURDIR)))
+
+include /usr/share/python/python.mk
+
+build: build-stamp
+build-arch: build-stamp
+build-indep: build-stamp
+build-stamp: $(PYVERS:%=build-python%)
+	touch $@
+build-python%:
+	python$* setup.py build
+	python$*-dbg setup.py build
+	touch $@
+
+clean:
+	rm -rf *-stamp build-python* build tmp
+	rm -rf $(addprefix debian/,$(packages)) debian/files debian/substvars
+	rm -rf _trial_temp test.log
+	rm -rf Twisted.egg-info
+	rm -f twisted/plugins/dropin.cache
+	find . -name "*.pyc" |xargs -r rm
+	dh_clean
+
+install: build-stamp install-prereq $(PYVERS:%=install-python%) install-nover
+
+install-prereq: build-stamp
+	dh_testdir
+	dh_testroot
+	dh_prep
+
+install-python%: install-prereq
+	: # python-twisted-core
+	python$* setup.py install --root=debian/python-twisted-core --install-layout=deb
+
+	-find debian/python-twisted-core -name '*.py[co]' | xargs rm -f
+	rm -rf debian/python-twisted-core$(call py_libdir,$*)/twisted/topfiles
+	rm -rf debian/python-twisted-core$(call py_libdir,$*)/Twisted-$(twversion).egg-info
+
+	python$* twisted/topfiles/setup.py install --root=tmp --install-layout=deb
+	cp tmp$(call py_libdir,$*)/Twisted_Core-$(twversion).egg-info debian/python-twisted-core$(call py_libdir,$*)/
+
+	: # We don't release the Twisted Pair package, as it's not developed anymore
+	rm -rf debian/python-twisted-core$(call py_libdir,$*)/twisted/pair
+
+	: # python-twisted-* source files
+	for i in conch lore mail names news runner web words; do \
+	    dh_movefiles -ppython-twisted-$$i -Xtopfiles \
+		--sourcedir=debian/python-twisted-core \
+		    $(call py_libdir,$*)/twisted/$$i/ \
+		    $(call py_libdir,$*)/twisted/plugins/twisted_$$i.py; \
+	    rm -rf debian/python-twisted-core$(call py_libdir,$*)/twisted/$$i/ ; \
+	    PYTHONPATH=$(CURDIR) python$* twisted/$$i/topfiles/setup.py install --root=tmp --install-layout=deb ; \
+	    cp tmp$(call py_libdir,$*)/Twisted_$${i^}-$(twversion).egg-info debian/python-twisted-$$i$(call py_libdir,$*)/ ; \
+	done
+
+	: # python-twisted-* scripts
+	for i in conch lore mail; do \
+	    for j in `ls bin/$${i}`; do \
+	        dh_movefiles -ppython-twisted-$$i \
+		    --sourcedir=debian/python-twisted-core \
+		        /usr/bin/$$j; \
+	    done; \
+	done
+
+	: # python-twisted
+	mkdir -p debian/python-twisted/$(call py_libdir,$*)
+	sed 's/@twversion@/$(twversion)/' debian/Twisted.egg-info.in \
+		> debian/python-twisted/$(call py_libdir,$*)/Twisted-$(twversion).egg-info
+
+	: # python-twisted-bin
+	dh_movefiles -ppython-twisted-bin \
+	  --sourcedir=debian/python-twisted-core \
+	    $(call py_libdir,$*)/twisted/python/sendmsg.so \
+	    $(call py_libdir,$*)/twisted/test/raiser.so
+
+	: # python-twisted-bin-dbg
+	python$*-dbg setup.py install --root=debian/python-twisted-bin-dbg --no-compile --install-layout=deb
+	find debian/python-twisted-bin-dbg ! -type d ! -name '*_d.so' | xargs rm -f
+	find debian/python-twisted-bin-dbg -depth -empty -exec rmdir {} \;
+
+	: # python-twisted-runner
+	dh_movefiles -ppython-twisted-runner-dbg \
+	  --sourcedir=debian/python-twisted-bin-dbg \
+	    $(call py_libdir,$*)/twisted/runner/portmap_d.so
+
+	: # Replace all '#!' calls to python with /usr/bin/python
+	: # and make them executable
+	for i in `find debian/python-twisted-* -mindepth 3 -type f`; do \
+	  sed '1s,#!.*python[^ ]*\(.*\),#! /usr/bin/python\1,' \
+		$$i > $$i.temp; \
+	  if cmp --quiet $$i $$i.temp; then \
+	    rm -f $$i.temp; \
+	  else \
+	    mv -f $$i.temp $$i; \
+	    chmod 755 $$i; \
+	    echo "fixed interpreter: $$i"; \
+	  fi; \
+	done
+
+install-nover:
+	: # man pages
+	for i in conch core lore mail; do \
+	    mkdir -p debian/python-twisted-$$i/usr/share/man/man1; \
+	    for j in doc/$$i/man/*.1; do \
+	        cp -p $$j debian/python-twisted-$$i/usr/share/man/man1/; \
+	    done; \
+	done
+
+	: # python-twisted-conch
+	mv debian/python-twisted-conch/usr/bin/cftp \
+		debian/python-twisted-conch/usr/bin/conchftp
+	mv debian/python-twisted-conch/usr/share/man/man1/cftp.1 \
+		debian/python-twisted-conch/usr/share/man/man1/conchftp.1
+
+	: # twisted-doc
+	mkdir -p debian/twisted-doc/usr/share/doc/twisted-doc
+	cp -a doc/core/* debian/twisted-doc/usr/share/doc/twisted-doc/
+	-find debian/twisted-doc -type d -name man | xargs rm -rf
+
+binary-indep: build install
+	dh_testdir
+	dh_testroot
+	dh_installchangelogs -i
+	dh_installdocs -i
+	dh_installmenu -i
+	dh_compress -i -X.py
+	dh_fixperms -i
+	dh_python2 -i
+	dh_installdeb -i
+	dh_gencontrol -ppython-twisted-core -ppython-twisted-lore -ppython-twisted-mail \
+	    -ppython-twisted-names -ppython-twisted-news -ppython-twisted-web \
+            -ppython-twisted-words -ptwisted-doc -ppython-twisted
+	# Add the epoch to python-twisted-conch, for upgrades
+	dh_gencontrol -ppython-twisted-conch -- -v1:$(DEBVERS)
+	dh_md5sums -i
+	dh_builddeb -ppython-twisted-core -ppython-twisted-lore -ppython-twisted-mail \
+	    -ppython-twisted-names -ppython-twisted-news -ppython-twisted-web \
+            -ppython-twisted-words -ptwisted-doc -ppython-twisted
+	dh_builddeb -ppython-twisted-conch
+
+binary-arch: build install
+	dh_testdir
+	dh_testroot
+	dh_installchangelogs -a
+	dh_installdocs -a
+	dh_installmenu -a
+	dh_strip -ppython-twisted-bin --dbg-package=python-twisted-bin-dbg
+	rm -rf debian/python-twisted-bin-dbg/usr/share/doc/python-twisted-bin-dbg
+	ln -s python-twisted-bin \
+	    debian/python-twisted-bin-dbg/usr/share/doc/python-twisted-bin-dbg
+	dh_strip -ppython-twisted-runner --dbg-package=python-twisted-runner-dbg
+	rm -rf debian/python-twisted-runner-dbg/usr/share/doc/python-twisted-runner-dbg
+	ln -s python-twisted-runner \
+            debian/python-twisted-runner-dbg/usr/share/doc/python-twisted-runner-dbg
+	dh_compress -a -X.py
+	dh_fixperms -a
+	dh_python2 -a
+	dh_installdeb -a
+	dh_shlibdeps -a
+	dh_gencontrol -a
+	dh_md5sums -a
+	dh_builddeb -a
+
+binary: binary-indep binary-arch
+.PHONY: build clean binary-indep binary-arch binary install install-nover install-prereq
