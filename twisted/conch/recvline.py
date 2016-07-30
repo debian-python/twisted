@@ -10,7 +10,7 @@ Basic line editing support.
 
 import string
 
-from zope.interface import implements
+from zope.interface import implementer
 
 from twisted.conch.insults import insults, helper
 
@@ -43,6 +43,9 @@ class Logging(object):
         logFile.write(name + '\n')
         return getattr(original, name)
 
+
+
+@implementer(insults.ITerminalTransport)
 class TransportSequence(object):
     """An L{ITerminalTransport} implementation which forwards calls to
     one or more other L{ITerminalTransport}s.
@@ -52,13 +55,12 @@ class TransportSequence(object):
     send to the real client and to a terminal emulator that lives in
     the server process.
     """
-    implements(insults.ITerminalTransport)
 
     for keyID in ('UP_ARROW', 'DOWN_ARROW', 'RIGHT_ARROW', 'LEFT_ARROW',
                   'HOME', 'INSERT', 'DELETE', 'END', 'PGUP', 'PGDN',
                   'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9',
                   'F10', 'F11', 'F12'):
-        exec '%s = object()' % (keyID,)
+        exec('%s = object()' % (keyID,))
 
     TAB = '\t'
     BACKSPACE = '\x7f'
@@ -68,12 +70,12 @@ class TransportSequence(object):
         self.transports = transports
 
     for method in insults.ITerminalTransport:
-        exec """\
+        exec("""\
 def %s(self, *a, **kw):
     for tpt in self.transports:
         result = tpt.%s(*a, **kw)
     return result
-""" % (method, method)
+""" % (method, method))
 
 class LocalTerminalBufferMixin(object):
     """A mixin for RecvLine subclasses which records the state of the terminal.

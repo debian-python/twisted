@@ -8,6 +8,8 @@
 
 #""" Implementation module for the `conch` command.
 #"""
+from __future__ import print_function
+
 from twisted.conch.client import connect, default, options
 from twisted.conch.error import ConchError
 from twisted.conch.ssh import connection, common
@@ -104,8 +106,8 @@ def run():
     options = ClientOptions()
     try:
         options.parseOptions(args)
-    except usage.UsageError, u:
-        print 'ERROR: %s' % u
+    except usage.UsageError as u:
+        print('ERROR: %s' % u)
         options.opt_help()
         sys.exit(1)
     if options['log']:
@@ -141,7 +143,7 @@ def run():
         if (options['command'] and options['tty']) or not options['notty']:
             signal.signal(signal.SIGWINCH, signal.SIG_DFL)
     if sys.stdout.isatty() and not options['command']:
-        print 'Connection to %s closed.' % options['host']
+        print('Connection to %s closed.' % options['host'])
     sys.exit(exitStatus)
 
 def handleError():
@@ -178,10 +180,6 @@ def doConnect():
 
 def _ebExit(f):
     global exitStatus
-    if hasattr(f.value, 'value'):
-        s = f.value.value
-    else:
-        s = str(f)
     exitStatus = "conch: exiting with error %s" % f
     reactor.callLater(0.1, _stopReactor)
 
@@ -213,7 +211,7 @@ def onConnect():
         for i in range(3):
             try:
                 os.close(i)
-            except OSError, e:
+            except OSError as e:
                 import errno
                 if e.errno != errno.EBADF:
                     raise
@@ -307,7 +305,7 @@ class SSHConnection(connection.SSHConnection):
         remoteHP, origHP = forwarding.unpackOpen_forwarded_tcpip(data)
         log.msg(self.remoteForwards)
         log.msg(remoteHP)
-        if self.remoteForwards.has_key(remoteHP[1]):
+        if remoteHP[1] in self.remoteForwards:
             connectHP = self.remoteForwards[remoteHP[1]]
             log.msg('connect forwarding %s' % (connectHP,))
             return SSHConnectForwardingChannel(connectHP,
@@ -469,11 +467,11 @@ def _leaveRawMode():
     if not _inRawMode:
         return
     fd = sys.stdin.fileno()
-    tty.tcsetattr(fd, tty.TCSANOW, _savedMode)
+    tty.tcsetattr(fd, tty.TCSANOW, _savedRawMode)
     _inRawMode = 0
 
 def _enterRawMode():
-    global _inRawMode, _savedMode
+    global _inRawMode, _savedRawMode
     if _inRawMode:
         return
     fd = sys.stdin.fileno()
@@ -502,7 +500,7 @@ def _enterRawMode():
         new[6][tty.VMIN] = 1
         new[6][tty.VTIME] = 0
 
-        _savedMode = old
+        _savedRawMode = old
         tty.tcsetattr(fd, tty.TCSANOW, new)
         #tty.setraw(fd)
         _inRawMode = 1

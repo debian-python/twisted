@@ -12,7 +12,7 @@ from twisted.persisted import dirdbm
 
 
 
-class DirDbmTestCase(unittest.TestCase):
+class DirDbmTests(unittest.TestCase):
 
     def setUp(self):
         self.path = self.mktemp()
@@ -51,8 +51,8 @@ class DirDbmTestCase(unittest.TestCase):
 
         # check they exist
         for k, v in self.items:
-            assert d.has_key(k), "has_key() failed"
-            assert d[k] == v, "database has wrong value"
+            self.assertIn(k, d)
+            self.assertEqual(d[k], v)
 
         # check non existent key
         try:
@@ -91,7 +91,7 @@ class DirDbmTestCase(unittest.TestCase):
         # delete items
         for k, v in self.items:
             del d[k]
-            assert not d.has_key(k), "has_key() even though we deleted it"
+            self.assertNotIn(k, d, "key is still in database, even though we deleted it")
         assert len(d.keys()) == 0, "database has keys"
         assert len(d.values()) == 0, "database has values"
         assert len(d.items()) == 0, "database has items"
@@ -158,7 +158,7 @@ class DirDbmTestCase(unittest.TestCase):
 
 
 
-class ShelfTestCase(DirDbmTestCase):
+class ShelfTests(DirDbmTests):
 
     def setUp(self):
         self.path = self.mktemp()
@@ -167,4 +167,4 @@ class ShelfTestCase(DirDbmTestCase):
                       ('int', 12), ('float', 12.0), ('tuple', (None, 12)))
 
 
-testCases = [DirDbmTestCase, ShelfTestCase]
+testCases = [DirDbmTests, ShelfTests]

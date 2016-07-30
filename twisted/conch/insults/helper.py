@@ -8,9 +8,11 @@ Partial in-memory terminal emulator
 @author: Jp Calderone
 """
 
+from __future__ import print_function
+
 import re, string
 
-from zope.interface import implements
+from zope.interface import implementer
 
 from twisted.internet import defer, protocol, reactor
 from twisted.python import log, _textattributes
@@ -99,17 +101,16 @@ deprecatedModuleAttribute(
 
 
 # XXX - need to support scroll regions and scroll history
+@implementer(insults.ITerminalTransport)
 class TerminalBuffer(protocol.Protocol):
     """
     An in-memory terminal emulator.
     """
-    implements(insults.ITerminalTransport)
-
     for keyID in ('UP_ARROW', 'DOWN_ARROW', 'RIGHT_ARROW', 'LEFT_ARROW',
                   'HOME', 'INSERT', 'DELETE', 'END', 'PGUP', 'PGDN',
                   'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9',
                   'F10', 'F11', 'F12'):
-        exec '%s = object()' % (keyID,)
+        exec('%s = object()' % (keyID,))
 
     TAB = '\t'
     BACKSPACE = '\x7f'
@@ -394,7 +395,7 @@ class TerminalBuffer(protocol.Protocol):
         self.eraseDisplay()
 
     def unhandledControlSequence(self, buf):
-        print 'Could not handle', repr(buf)
+        print('Could not handle', repr(buf))
 
     def __str__(self):
         lines = []

@@ -70,7 +70,53 @@ class ImmediateFailureMixin(object):
 
 
 
-class DeferredTestCase(unittest.SynchronousTestCase, ImmediateFailureMixin):
+class UtilTests(unittest.TestCase):
+    """
+    Tests for utility functions.
+    """
+
+    def test_logErrorReturnsError(self):
+        """
+        L{defer.logError} returns the given error.
+        """
+        error = failure.Failure(RuntimeError())
+        result = defer.logError(error)
+        self.flushLoggedErrors(RuntimeError)
+
+        self.assertIs(error, result)
+
+
+    def test_logErrorLogsError(self):
+        """
+        L{defer.logError} logs the given error.
+        """
+        error = failure.Failure(RuntimeError())
+        defer.logError(error)
+        errors = self.flushLoggedErrors(RuntimeError)
+
+        self.assertEqual(errors, [error])
+
+
+    def test_logErrorLogsErrorNoRepr(self):
+        """
+        The text logged by L{defer.logError} has no repr of the failure.
+        """
+        output = []
+
+        def emit(eventDict):
+            output.append(log.textFromEventDict(eventDict))
+
+        log.addObserver(emit)
+
+        error = failure.Failure(RuntimeError())
+        defer.logError(error)
+        self.flushLoggedErrors(RuntimeError)
+
+        self.assertTrue(output[0].startswith("Unhandled Error\nTraceback "))
+
+
+
+class DeferredTests(unittest.SynchronousTestCase, ImmediateFailureMixin):
 
     def setUp(self):
         self.callbackResults = None
@@ -192,7 +238,7 @@ class DeferredTestCase(unittest.SynchronousTestCase, ImmediateFailureMixin):
         aFailure = result[0]
 
         # the type of the failure is a FirstError
-        self.failUnless(issubclass(aFailure.type, defer.FirstError),
+        self.assertTrue(issubclass(aFailure.type, defer.FirstError),
             'issubclass(aFailure.type, defer.FirstError) failed: '
             "failure's type is %r" % (aFailure.type,)
         )
@@ -1300,8 +1346,8 @@ class DeferredTestCase(unittest.SynchronousTestCase, ImmediateFailureMixin):
         fail = l[0]
         self.assertEqual(fail.value, exc)
         localz, globalz = fail.frames[0][-2:]
-        self.assertNotEquals([], localz)
-        self.assertNotEquals([], globalz)
+        self.assertNotEqual([], localz)
+        self.assertNotEqual([], globalz)
 
 
     def test_errorInCallbackDoesNotCaptureVars(self):
@@ -1338,8 +1384,8 @@ class DeferredTestCase(unittest.SynchronousTestCase, ImmediateFailureMixin):
         d.addErrback(l.append)
         fail = l[0]
         localz, globalz = fail.frames[0][-2:]
-        self.assertNotEquals([], localz)
-        self.assertNotEquals([], globalz)
+        self.assertNotEqual([], localz)
+        self.assertNotEqual([], globalz)
 
 
     def test_inlineCallbacksTracebacks(self):
@@ -1370,10 +1416,9 @@ class DeferredTestCase(unittest.SynchronousTestCase, ImmediateFailureMixin):
 
 
     if _PY3:
-        test_inlineCallbacksTracebacks.todo = (
+        # FIXME: https://twistedmatrix.com/trac/ticket/5949
+        test_inlineCallbacksTracebacks.skip = (
             "Python 3 support to be fixed in #5949")
-        # Remove this line in #6008 (unittest todo support):
-        del test_inlineCallbacksTracebacks
 
 
 
@@ -1445,7 +1490,7 @@ class FirstErrorTests(unittest.SynchronousTestCase):
 
 
 
-class AlreadyCalledTestCase(unittest.SynchronousTestCase):
+class AlreadyCalledTests(unittest.SynchronousTestCase):
     def setUp(self):
         self._deferredWasDebugging = defer.getDebugging()
         defer.setDebugging(True)
@@ -1498,7 +1543,7 @@ class AlreadyCalledTestCase(unittest.SynchronousTestCase):
             if (line.startswith(' %s:' % linetype) and
                 line.endswith(' %s' % func)):
                 count += 1
-        self.failUnless(count == expected)
+        self.assertTrue(count == expected)
 
     def _check(self, e, caller, invoker1, invoker2):
         # make sure the debugging information is vaguely correct
@@ -1566,7 +1611,7 @@ class AlreadyCalledTestCase(unittest.SynchronousTestCase):
         try:
             self._call_2(d)
         except defer.AlreadyCalledError as e:
-            self.failIf(e.args)
+            self.assertFalse(e.args)
         else:
             self.fail("second callback failed to raise AlreadyCalledError")
 
@@ -1588,7 +1633,7 @@ class AlreadyCalledTestCase(unittest.SynchronousTestCase):
 
 
 
-class DeferredCancellerTest(unittest.SynchronousTestCase):
+class DeferredCancellerTests(unittest.SynchronousTestCase):
     def setUp(self):
         self.callbackResults = None
         self.errbackResults = None
@@ -1851,7 +1896,7 @@ class DeferredCancellerTest(unittest.SynchronousTestCase):
 
 
 
-class LogTestCase(unittest.SynchronousTestCase):
+class LogTests(unittest.SynchronousTestCase):
     """
     Test logging of unhandled errors.
     """
@@ -1921,6 +1966,48 @@ class LogTestCase(unittest.SynchronousTestCase):
         self._check()
 
 
+    def test_errorLogNoRepr(self):
+        """
+        Verify that when a L{Deferred} with no references to it is fired,
+        the logged message does not contain a repr of the failure object.
+        """
+        defer.Deferred().addCallback(lambda x: 1 // 0).callback(1)
+
+        gc.collect()
+        self._check()
+
+        self.assertEqual(2, len(self.c))
+        msg = log.textFromEventDict(self.c[-1])
+        expected = "Unhandled Error\nTraceback "
+        self.assertTrue(msg.startswith(expected),
+                        "Expected message starting with: {0!r}".
+                            format(expected))
+
+
+    def test_errorLogDebugInfo(self):
+        """
+        Verify that when a L{Deferred} with no references to it is fired,
+        the logged message includes debug info if debugging on the deferred
+        is enabled.
+        """
+        def doit():
+            d = defer.Deferred()
+            d.debug = True
+            d.addCallback(lambda x: 1 // 0)
+            d.callback(1)
+
+        doit()
+        gc.collect()
+        self._check()
+
+        self.assertEqual(2, len(self.c))
+        msg = log.textFromEventDict(self.c[-1])
+        expected = "(debug:  I"
+        self.assertTrue(msg.startswith(expected),
+                        "Expected message starting with: {0!r}".
+                            format(expected))
+
+
     def test_chainedErrorCleanup(self):
         """
         If one Deferred with an error result is returned from a callback on
@@ -1969,7 +2056,7 @@ class LogTestCase(unittest.SynchronousTestCase):
 
 
 
-class DeferredTestCaseII(unittest.SynchronousTestCase):
+class DeferredListEmptyTests(unittest.SynchronousTestCase):
     def setUp(self):
         self.callbackRan = 0
 
@@ -1983,11 +2070,11 @@ class DeferredTestCaseII(unittest.SynchronousTestCase):
         self.assertEqual([], res)
 
     def tearDown(self):
-        self.failUnless(self.callbackRan, "Callback was never run.")
+        self.assertTrue(self.callbackRan, "Callback was never run.")
 
 
 
-class OtherPrimitives(unittest.SynchronousTestCase, ImmediateFailureMixin):
+class OtherPrimitivesTests(unittest.SynchronousTestCase, ImmediateFailureMixin):
     def _incr(self, result):
         self.counter += 1
 
@@ -1997,19 +2084,19 @@ class OtherPrimitives(unittest.SynchronousTestCase, ImmediateFailureMixin):
     def testLock(self):
         lock = defer.DeferredLock()
         lock.acquire().addCallback(self._incr)
-        self.failUnless(lock.locked)
+        self.assertTrue(lock.locked)
         self.assertEqual(self.counter, 1)
 
         lock.acquire().addCallback(self._incr)
-        self.failUnless(lock.locked)
+        self.assertTrue(lock.locked)
         self.assertEqual(self.counter, 1)
 
         lock.release()
-        self.failUnless(lock.locked)
+        self.assertTrue(lock.locked)
         self.assertEqual(self.counter, 2)
 
         lock.release()
-        self.failIf(lock.locked)
+        self.assertFalse(lock.locked)
         self.assertEqual(self.counter, 2)
 
         self.assertRaises(TypeError, lock.run)
@@ -2023,18 +2110,18 @@ class OtherPrimitives(unittest.SynchronousTestCase, ImmediateFailureMixin):
             return controlDeferred
 
         resultDeferred = lock.run(helper, self=self, b=firstUnique)
-        self.failUnless(lock.locked)
+        self.assertTrue(lock.locked)
         self.assertEqual(self.b, firstUnique)
 
         resultDeferred.addCallback(lambda x: setattr(self, 'result', x))
 
         lock.acquire().addCallback(self._incr)
-        self.failUnless(lock.locked)
+        self.assertTrue(lock.locked)
         self.assertEqual(self.counter, 2)
 
         controlDeferred.callback(secondUnique)
         self.assertEqual(self.result, secondUnique)
-        self.failUnless(lock.locked)
+        self.assertTrue(lock.locked)
         self.assertEqual(self.counter, 3)
 
         d = lock.acquire().addBoth(lambda x: setattr(self, 'result', x))
@@ -2042,7 +2129,7 @@ class OtherPrimitives(unittest.SynchronousTestCase, ImmediateFailureMixin):
         self.assertEqual(self.result.type, defer.CancelledError)
 
         lock.release()
-        self.failIf(lock.locked)
+        self.assertFalse(lock.locked)
 
 
     def test_cancelLockAfterAcquired(self):
@@ -2229,7 +2316,7 @@ class OtherPrimitives(unittest.SynchronousTestCase, ImmediateFailureMixin):
 
 
 
-class DeferredFilesystemLockTestCase(unittest.TestCase):
+class DeferredFilesystemLockTests(unittest.TestCase):
     """
     Test the behavior of L{DeferredFilesystemLock}
     """
@@ -2254,7 +2341,7 @@ class DeferredFilesystemLockTestCase(unittest.TestCase):
         Test that the lock can not be acquired when the lock is held
         for longer than the timeout.
         """
-        self.failUnless(self.lock.lock())
+        self.assertTrue(self.lock.lock())
 
         d = self.lock.deferUntilLocked(timeout=5.5)
         self.assertFailure(d, defer.TimeoutError)
@@ -2273,7 +2360,7 @@ class DeferredFilesystemLockTestCase(unittest.TestCase):
             f.trap(defer.TimeoutError)
             self.fail("Should not have timed out")
 
-        self.failUnless(self.lock.lock())
+        self.assertTrue(self.lock.lock())
 
         self.clock.callLater(1, self.lock.unlock)
         d = self.lock.deferUntilLocked(timeout=10)

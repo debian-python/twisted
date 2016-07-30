@@ -11,7 +11,8 @@ import traceback
 from twisted.trial import unittest
 from twisted.internet import error, defer
 from twisted.test.proto_helpers import StringTransport
-from twisted.conch.test.test_recvline import _TelnetMixin, _SSHMixin, _StdioMixin, stdio, ssh
+from twisted.conch.test.test_recvline import (
+    _TelnetMixin, _SSHMixin, _StdioMixin, stdio, ssh)
 from twisted.conch import manhole
 from twisted.conch.insults import insults
 
@@ -67,7 +68,7 @@ class ManholeProtocolTests(unittest.TestCase):
 
 
 
-class WriterTestCase(unittest.TestCase):
+class WriterTests(unittest.TestCase):
     def testInteger(self):
         manhole.lastColorizedLine("1")
 
@@ -96,11 +97,14 @@ class WriterTestCase(unittest.TestCase):
         manhole.lastColorizedLine("class foo:")
 
 
+
 class ManholeLoopbackMixin:
     serverProtocol = manhole.ColoredManhole
 
+
     def wfd(self, d):
         return defer.waitForDeferred(d)
+
 
     def testSimpleExpression(self):
         done = self.recvlineClient.expect("done")
@@ -117,6 +121,7 @@ class ManholeLoopbackMixin:
 
         return done.addCallback(finished)
 
+
     def testTripleQuoteLineContinuation(self):
         done = self.recvlineClient.expect("done")
 
@@ -132,6 +137,7 @@ class ManholeLoopbackMixin:
                  ">>> done"])
 
         return done.addCallback(finished)
+
 
     def testFunctionDefinition(self):
         done = self.recvlineClient.expect("done")
@@ -152,6 +158,7 @@ class ManholeLoopbackMixin:
                  ">>> done"])
 
         return done.addCallback(finished)
+
 
     def testClassDefinition(self):
         done = self.recvlineClient.expect("done")
@@ -175,6 +182,7 @@ class ManholeLoopbackMixin:
 
         return done.addCallback(finished)
 
+
     def testException(self):
         done = self.recvlineClient.expect("done")
 
@@ -191,6 +199,7 @@ class ManholeLoopbackMixin:
                  ">>> done"])
 
         return done.addCallback(finished)
+
 
     def testControlC(self):
         done = self.recvlineClient.expect("done")
@@ -253,34 +262,33 @@ class ManholeLoopbackMixin:
             self._assertBuffer(
                 [""])
 
-        return partialLine.addCallback(gotPartialLine).addCallback(gotClearedLine)
+        return partialLine.addCallback(gotPartialLine).addCallback(
+            gotClearedLine)
 
-    def testControlD(self):
+
+    @defer.inlineCallbacks
+    def test_controlD(self):
+        """
+        A CTRL+D in the middle of a line doesn't close a connection,
+        but at the beginning of a line it does.
+        """
         self._testwrite("1 + 1")
-        helloWorld = self.wfd(self.recvlineClient.expect(r"\+ 1"))
-        yield helloWorld
-        helloWorld.getResult()
+        yield self.recvlineClient.expect(r"\+ 1")
         self._assertBuffer([">>> 1 + 1"])
 
         self._testwrite(manhole.CTRL_D + " + 1")
-        cleared = self.wfd(self.recvlineClient.expect(r"\+ 1"))
-        yield cleared
-        cleared.getResult()
+        yield self.recvlineClient.expect(r"\+ 1")
         self._assertBuffer([">>> 1 + 1 + 1"])
 
         self._testwrite("\n")
-        printed = self.wfd(self.recvlineClient.expect("3\n>>> "))
-        yield printed
-        printed.getResult()
+        yield self.recvlineClient.expect("3\n>>> ")
 
         self._testwrite(manhole.CTRL_D)
         d = self.recvlineClient.onDisconnection
-        disconnected = self.wfd(self.assertFailure(d, error.ConnectionDone))
-        yield disconnected
-        disconnected.getResult()
-    testControlD = defer.deferredGenerator(testControlD)
+        yield self.assertFailure(d, error.ConnectionDone)
 
 
+    @defer.inlineCallbacks
     def testControlL(self):
         """
         CTRL+L is generally used as a redraw-screen command in terminal
@@ -291,17 +299,12 @@ class ManholeLoopbackMixin:
         # Start off with a newline so that when we clear the display we can
         # tell by looking for the missing first empty prompt line.
         self._testwrite("\n1 + 1")
-        helloWorld = self.wfd(self.recvlineClient.expect(r"\+ 1"))
-        yield helloWorld
-        helloWorld.getResult()
+        yield self.recvlineClient.expect(r"\+ 1")
         self._assertBuffer([">>> ", ">>> 1 + 1"])
 
         self._testwrite(manhole.CTRL_L + " + 1")
-        redrew = self.wfd(self.recvlineClient.expect(r"1 \+ 1 \+ 1"))
-        yield redrew
-        redrew.getResult()
+        yield self.recvlineClient.expect(r"1 \+ 1 \+ 1")
         self._assertBuffer([">>> 1 + 1 + 1"])
-    testControlL = defer.deferredGenerator(testControlL)
 
 
     def test_controlA(self):
@@ -328,25 +331,25 @@ class ManholeLoopbackMixin:
         return d.addCallback(cb)
 
 
-    def testDeferred(self):
+    @defer.inlineCallbacks
+    def test_deferred(self):
+        """
+        When a deferred is returned to the manhole REPL, it is displayed with
+        an sequence number, and when the deferred fires, the result is printed.
+        """
         self._testwrite(
             "from twisted.internet import defer, reactor\n"
             "d = defer.Deferred()\n"
             "d\n")
 
-        deferred = self.wfd(self.recvlineClient.expect("<Deferred #0>"))
-        yield deferred
-        deferred.getResult()
+        yield self.recvlineClient.expect("<Deferred #0>")
 
         self._testwrite(
             "c = reactor.callLater(0.1, d.callback, 'Hi!')\n")
-        delayed = self.wfd(self.recvlineClient.expect(">>> "))
-        yield delayed
-        delayed.getResult()
+        yield self.recvlineClient.expect(">>> ")
 
-        called = self.wfd(self.recvlineClient.expect("Deferred #0 called back: 'Hi!'\n>>> "))
-        yield called
-        called.getResult()
+        yield self.recvlineClient.expect(
+            "Deferred #0 called back: 'Hi!'\n>>> ")
         self._assertBuffer(
             [">>> from twisted.internet import defer, reactor",
              ">>> d = defer.Deferred()",
@@ -356,17 +359,33 @@ class ManholeLoopbackMixin:
              "Deferred #0 called back: 'Hi!'",
              ">>> "])
 
-    testDeferred = defer.deferredGenerator(testDeferred)
 
-class ManholeLoopbackTelnet(_TelnetMixin, unittest.TestCase, ManholeLoopbackMixin):
+
+class ManholeLoopbackTelnetTests(_TelnetMixin, unittest.TestCase,
+                                 ManholeLoopbackMixin):
+    """
+    Test manhole loopback over Telnet.
+    """
     pass
 
-class ManholeLoopbackSSH(_SSHMixin, unittest.TestCase, ManholeLoopbackMixin):
-    if ssh is None:
-        skip = "Crypto requirements missing, can't run manhole tests over ssh"
 
-class ManholeLoopbackStdio(_StdioMixin, unittest.TestCase, ManholeLoopbackMixin):
+
+class ManholeLoopbackSSHTests(_SSHMixin, unittest.TestCase,
+                              ManholeLoopbackMixin):
+    """
+    Test manhole loopback over SSH.
+    """
+    if ssh is None:
+        skip = "cryptography requirements missing"
+
+
+
+class ManholeLoopbackStdioTests(_StdioMixin, unittest.TestCase,
+                                ManholeLoopbackMixin):
+    """
+    Test manhole loopback over standard IO.
+    """
     if stdio is None:
-        skip = "Terminal requirements missing, can't run manhole tests over stdio"
+        skip = "Terminal requirements missing"
     else:
         serverProtocol = stdio.ConsoleManhole

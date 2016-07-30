@@ -1,3 +1,8 @@
-tap2deb.diff
 wxpython3.0.patch
 combinedlog.patch
+
+# don't apply, performance issue just for backward compatibility
+#lp1102685.diff
+#lp1098127.diff
+sphinx-theme.diff
+fix-man-error.diff

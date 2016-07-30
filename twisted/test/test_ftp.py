@@ -176,7 +176,7 @@ class FTPServerTestCase(unittest.TestCase):
 
 
 
-class FTPAnonymousTestCase(FTPServerTestCase):
+class FTPAnonymousTests(FTPServerTestCase):
     """
     Simple tests for an FTP server with different anonymous username.
     The new anonymous username used in this test case is "guest"
@@ -200,7 +200,7 @@ class FTPAnonymousTestCase(FTPServerTestCase):
 
 
 
-class BasicFTPServerTestCase(FTPServerTestCase):
+class BasicFTPServerTests(FTPServerTestCase):
     def testNotLoggedInReply(self):
         """
         When not logged in, most commands other than USER and PASS should
@@ -213,13 +213,13 @@ class BasicFTPServerTestCase(FTPServerTestCase):
         # Issue commands, check responses
         def checkFailResponse(exception, command):
             failureResponseLines = exception.args[0]
-            self.failUnless(failureResponseLines[-1].startswith("530"),
+            self.assertTrue(failureResponseLines[-1].startswith("530"),
                             "%s - Response didn't start with 530: %r"
                             % (command, failureResponseLines[-1],))
 
         def checkPassResponse(result, command):
             result = result[0]
-            self.failIf(result.startswith("530"),
+            self.assertFalse(result.startswith("530"),
                             "%s - Response start with 530: %r"
                             % (command, result,))
 
@@ -361,24 +361,28 @@ class BasicFTPServerTestCase(FTPServerTestCase):
             s = ','.join(map(str, badValue))
             self.assertRaises(ValueError, ftp.decodeHostPort, s)
 
-    def testPASV(self):
+
+    def test_PASV(self):
+        """
+        When the client sends the command C{PASV}, the server responds with a
+        host and port, and is listening on that port.
+        """
         # Login
-        wfd = defer.waitForDeferred(self._anonymousLogin())
-        yield wfd
-        wfd.getResult()
-
-        # Issue a PASV command, and extract the host and port from the response
-        pasvCmd = defer.waitForDeferred(self.client.queueStringCommand('PASV'))
-        yield pasvCmd
-        responseLines = pasvCmd.getResult()
-        host, port = ftp.decodeHostPort(responseLines[-1][4:])
-
-        # Make sure the server is listening on the port it claims to be
-        self.assertEqual(port, self.serverProtocol.dtpPort.getHost().port)
-
+        d = self._anonymousLogin()
+        # Issue a PASV command
+        d.addCallback(lambda _: self.client.queueStringCommand('PASV'))
+        def cb(responseLines):
+            """
+            Extract the host and port from the resonse, and
+            verify the server is listening of the port it claims to be.
+            """
+            host, port = ftp.decodeHostPort(responseLines[-1][4:])
+            self.assertEqual(port, self.serverProtocol.dtpPort.getHost().port)
+        d.addCallback(cb)
         # Semi-reasonable way to force cleanup
-        self.serverProtocol.transport.loseConnection()
-    testPASV = defer.deferredGenerator(testPASV)
+        d.addCallback(lambda _: self.serverProtocol.transport.loseConnection())
+        return d
+
 
     def test_SYST(self):
         """SYST command will always return UNIX Type: L8"""
@@ -599,7 +603,7 @@ class BasicFTPServerTestCase(FTPServerTestCase):
 
 
 
-class FTPServerTestCaseAdvancedClient(FTPServerTestCase):
+class FTPServerAdvancedClientTests(FTPServerTestCase):
     """
     Test FTP server with the L{ftp.FTPClient} class.
     """
@@ -711,7 +715,7 @@ class FTPServerTestCaseAdvancedClient(FTPServerTestCase):
 
 
 
-class FTPServerPasvDataConnectionTestCase(FTPServerTestCase):
+class FTPServerPasvDataConnectionTests(FTPServerTestCase):
     def _makeDataConnection(self, ignored=None):
         # Establish a passive data connection (i.e. client connecting to
         # server).
@@ -735,7 +739,8 @@ class FTPServerPasvDataConnectionTestCase(FTPServerTestCase):
             return defer.gatherResults([d1, d2])
         chainDeferred.addCallback(queueCommand)
 
-        def downloadDone((ignored, downloader)):
+        def downloadDone(result):
+            (ignored, downloader) = result
             return downloader.buffer
         return chainDeferred.addCallback(downloadDone)
 
@@ -875,7 +880,8 @@ class FTPServerPasvDataConnectionTestCase(FTPServerTestCase):
         """
         return self._listTestHelper(
             "LIST",
-            (u'my resum\xe9', (0, 1, 0777, 0, 0, 'user', 'group')),
+            (u'my resum\xe9', (
+                0, 1, filepath.Permissions(0o777), 0, 0, 'user', 'group')),
             'drwxrwxrwx   0 user      group                   '
             '0 Jan 01  1970 my resum\xc3\xa9\r\n')
 
@@ -887,7 +893,8 @@ class FTPServerPasvDataConnectionTestCase(FTPServerTestCase):
         """
         return self._listTestHelper(
             "LIST",
-            ('my resum\xc3\xa9', (0, 1, 0777, 0, 0, 'user', 'group')),
+            ('my resum\xc3\xa9', (
+                0, 1, filepath.Permissions(0o777), 0, 0, 'user', 'group')),
             'drwxrwxrwx   0 user      group                   '
             '0 Jan 01  1970 my resum\xc3\xa9\r\n')
 
@@ -933,7 +940,7 @@ class FTPServerPasvDataConnectionTestCase(FTPServerTestCase):
         def checkError(failure):
             failure.trap(ftp.CommandFailed)
             self.assertEqual(
-                ['550 foo: is a directory'], failure.value.message)
+                ['550 foo: is a directory'], failure.value.args[0])
             current_errors = self.flushLoggedErrors()
             self.assertEqual(
                 0, len(current_errors),
@@ -983,7 +990,8 @@ class FTPServerPasvDataConnectionTestCase(FTPServerTestCase):
         """
         return self._listTestHelper(
             "NLST",
-            (u'my resum\xe9', (0, 1, 0777, 0, 0, 'user', 'group')),
+            (u'my resum\xe9', (
+                0, 1, filepath.Permissions(0o777), 0, 0, 'user', 'group')),
             'my resum\xc3\xa9\r\n')
 
 
@@ -993,7 +1001,8 @@ class FTPServerPasvDataConnectionTestCase(FTPServerTestCase):
         """
         return self._listTestHelper(
             "NLST",
-            ('my resum\xc3\xa9', (0, 1, 0777, 0, 0, 'user', 'group')),
+            ('my resum\xc3\xa9', (
+                0, 1, filepath.Permissions(0o777), 0, 0, 'user', 'group')),
             'my resum\xc3\xa9\r\n')
 
 
@@ -1016,10 +1025,10 @@ class FTPServerPasvDataConnectionTestCase(FTPServerTestCase):
 
 
 
-class FTPServerPortDataConnectionTestCase(FTPServerPasvDataConnectionTestCase):
+class FTPServerPortDataConnectionTests(FTPServerPasvDataConnectionTests):
     def setUp(self):
         self.dataPorts = []
-        return FTPServerPasvDataConnectionTestCase.setUp(self)
+        return FTPServerPasvDataConnectionTests.setUp(self)
 
     def _makeDataConnection(self, ignored=None):
         # Establish an active data connection (i.e. server connecting to
@@ -1040,7 +1049,7 @@ class FTPServerPortDataConnectionTestCase(FTPServerPasvDataConnectionTestCase):
     def tearDown(self):
         l = [defer.maybeDeferred(port.stopListening) for port in self.dataPorts]
         d = defer.maybeDeferred(
-            FTPServerPasvDataConnectionTestCase.tearDown, self)
+            FTPServerPasvDataConnectionTests.tearDown, self)
         l.append(d)
         return defer.DeferredList(l, fireOnOneErrback=True)
 
@@ -1156,7 +1165,7 @@ class DTPFactoryTests(unittest.TestCase):
         cancelled by L{ftp.DTPFactory.buildProtocol}.
         """
         self.factory.setTimeout(10)
-        protocol = self.factory.buildProtocol(None)
+        self.factory.buildProtocol(None)
         # Make sure the call is no longer active.
         self.assertFalse(self.reactor.calls)
 
@@ -1300,51 +1309,55 @@ class FTPFileListingTests(unittest.TestCase):
     def testOneLine(self):
         # This example line taken from the docstring for FTPFileListProtocol
         line = '-rw-r--r--   1 root     other        531 Jan 29 03:26 README'
-        def check(((file,), other)):
-            self.failIf(other, 'unexpect unparsable lines: %s' % repr(other))
-            self.failUnless(file['filetype'] == '-', 'misparsed fileitem')
-            self.failUnless(file['perms'] == 'rw-r--r--', 'misparsed perms')
-            self.failUnless(file['owner'] == 'root', 'misparsed fileitem')
-            self.failUnless(file['group'] == 'other', 'misparsed fileitem')
-            self.failUnless(file['size'] == 531, 'misparsed fileitem')
-            self.failUnless(file['date'] == 'Jan 29 03:26', 'misparsed fileitem')
-            self.failUnless(file['filename'] == 'README', 'misparsed fileitem')
-            self.failUnless(file['nlinks'] == 1, 'misparsed nlinks')
-            self.failIf(file['linktarget'], 'misparsed linktarget')
+        def check(file_other):
+            ((file,), other) = file_other
+            self.assertFalse(other,
+                             'unexpect unparsable lines: %s' % (repr(other),))
+            self.assertTrue(file['filetype'] == '-', 'misparsed fileitem')
+            self.assertTrue(file['perms'] == 'rw-r--r--', 'misparsed perms')
+            self.assertTrue(file['owner'] == 'root', 'misparsed fileitem')
+            self.assertTrue(file['group'] == 'other', 'misparsed fileitem')
+            self.assertTrue(file['size'] == 531, 'misparsed fileitem')
+            self.assertTrue(file['date'] == 'Jan 29 03:26','misparsed fileitem')
+            self.assertTrue(file['filename'] == 'README', 'misparsed fileitem')
+            self.assertTrue(file['nlinks'] == 1, 'misparsed nlinks')
+            self.assertFalse(file['linktarget'], 'misparsed linktarget')
         return self.getFilesForLines([line]).addCallback(check)
 
     def testVariantLines(self):
         line1 = 'drw-r--r--   2 root     other        531 Jan  9  2003 A'
         line2 = 'lrw-r--r--   1 root     other          1 Jan 29 03:26 B -> A'
         line3 = 'woohoo! '
-        def check(((file1, file2), (other,))):
-            self.failUnless(other == 'woohoo! \r', 'incorrect other line')
+        def check(result):
+            ((file1, file2), (other,)) = result
+            self.assertTrue(other == 'woohoo! \r', 'incorrect other line')
             # file 1
-            self.failUnless(file1['filetype'] == 'd', 'misparsed fileitem')
-            self.failUnless(file1['perms'] == 'rw-r--r--', 'misparsed perms')
-            self.failUnless(file1['owner'] == 'root', 'misparsed owner')
-            self.failUnless(file1['group'] == 'other', 'misparsed group')
-            self.failUnless(file1['size'] == 531, 'misparsed size')
-            self.failUnless(file1['date'] == 'Jan  9  2003', 'misparsed date')
-            self.failUnless(file1['filename'] == 'A', 'misparsed filename')
-            self.failUnless(file1['nlinks'] == 2, 'misparsed nlinks')
-            self.failIf(file1['linktarget'], 'misparsed linktarget')
+            self.assertTrue(file1['filetype'] == 'd', 'misparsed fileitem')
+            self.assertTrue(file1['perms'] == 'rw-r--r--', 'misparsed perms')
+            self.assertTrue(file1['owner'] == 'root', 'misparsed owner')
+            self.assertTrue(file1['group'] == 'other', 'misparsed group')
+            self.assertTrue(file1['size'] == 531, 'misparsed size')
+            self.assertTrue(file1['date'] == 'Jan  9  2003', 'misparsed date')
+            self.assertTrue(file1['filename'] == 'A', 'misparsed filename')
+            self.assertTrue(file1['nlinks'] == 2, 'misparsed nlinks')
+            self.assertFalse(file1['linktarget'], 'misparsed linktarget')
             # file 2
-            self.failUnless(file2['filetype'] == 'l', 'misparsed fileitem')
-            self.failUnless(file2['perms'] == 'rw-r--r--', 'misparsed perms')
-            self.failUnless(file2['owner'] == 'root', 'misparsed owner')
-            self.failUnless(file2['group'] == 'other', 'misparsed group')
-            self.failUnless(file2['size'] == 1, 'misparsed size')
-            self.failUnless(file2['date'] == 'Jan 29 03:26', 'misparsed date')
-            self.failUnless(file2['filename'] == 'B', 'misparsed filename')
-            self.failUnless(file2['nlinks'] == 1, 'misparsed nlinks')
-            self.failUnless(file2['linktarget'] == 'A', 'misparsed linktarget')
+            self.assertTrue(file2['filetype'] == 'l', 'misparsed fileitem')
+            self.assertTrue(file2['perms'] == 'rw-r--r--', 'misparsed perms')
+            self.assertTrue(file2['owner'] == 'root', 'misparsed owner')
+            self.assertTrue(file2['group'] == 'other', 'misparsed group')
+            self.assertTrue(file2['size'] == 1, 'misparsed size')
+            self.assertTrue(file2['date'] == 'Jan 29 03:26', 'misparsed date')
+            self.assertTrue(file2['filename'] == 'B', 'misparsed filename')
+            self.assertTrue(file2['nlinks'] == 1, 'misparsed nlinks')
+            self.assertTrue(file2['linktarget'] == 'A', 'misparsed linktarget')
         return self.getFilesForLines([line1, line2, line3]).addCallback(check)
 
     def testUnknownLine(self):
-        def check((files, others)):
-            self.failIf(files, 'unexpected file entries')
-            self.failUnless(others == ['ABC\r', 'not a file\r'],
+        def check(result):
+            (files, others) = result
+            self.assertFalse(files, 'unexpected file entries')
+            self.assertTrue(others == ['ABC\r', 'not a file\r'],
                             'incorrect unparsable lines: %s' % repr(others))
         return self.getFilesForLines(['ABC', 'not a file']).addCallback(check)
 
@@ -1359,7 +1372,8 @@ class FTPFileListingTests(unittest.TestCase):
             'B A -> D C/A B'
             )
 
-        def check((files, others)):
+        def check(result):
+            (files, others) = result
             self.assertEqual([], others, 'unexpected others entries')
             self.assertEqual(
                 'A B', files[0]['filename'], 'misparsed filename')
@@ -1380,7 +1394,8 @@ class FTPFileListingTests(unittest.TestCase):
             'B A -> D\ C/A B'
             )
 
-        def check((files, others)):
+        def check(result):
+            (files, others) = result
             self.assertEqual([], others, 'unexpected others entries')
             self.assertEqual(
                 'A B', files[0]['filename'], 'misparsed filename')
@@ -1402,16 +1417,16 @@ class FTPFileListingTests(unittest.TestCase):
 
         def check(ignored):
             file = fileList.files[0]
-            self.failUnless(file['size'] == 531, 'misparsed fileitem')
-            self.failUnless(file['date'] == 'Jan 29 2003', 'misparsed fileitem')
-            self.failUnless(file['filename'] == 'README', 'misparsed fileitem')
+            self.assertTrue(file['size'] == 531, 'misparsed fileitem')
+            self.assertTrue(file['date'] == 'Jan 29 2003', 'misparsed fileitem')
+            self.assertTrue(file['filename'] == 'README', 'misparsed fileitem')
 
         d = loopback.loopbackAsync(PrintLine(), fileList)
         return d.addCallback(check)
 
 
 
-class FTPClientTests(unittest.TestCase):
+class FTPClientFailedRETRAndErrbacksUponDisconnectTests(unittest.TestCase):
 
     def testFailedRETR(self):
         f = protocol.Factory()
@@ -1434,7 +1449,6 @@ class FTPClientTests(unittest.TestCase):
                      '550 Failed to open file.']
         f.buildProtocol = lambda addr: PrintLines(responses)
 
-        client = ftp.FTPClient(passive=1)
         cc = protocol.ClientCreator(reactor, ftp.FTPClient, passive=1)
         d = cc.connectTCP('127.0.0.1', portNum)
         def gotClient(client):
@@ -1460,12 +1474,12 @@ class FTPClientTests(unittest.TestCase):
         d.addErrback(_eb)
         from twisted.internet.main import CONNECTION_LOST
         ftpClient.connectionLost(failure.Failure(CONNECTION_LOST))
-        self.failUnless(m, m)
+        self.assertTrue(m, m)
         return d
 
 
 
-class FTPClientTestCase(unittest.TestCase):
+class FTPClientTests(unittest.TestCase):
     """
     Test advanced FTP client commands.
     """
@@ -2512,7 +2526,7 @@ class FTPClientBasicTests(unittest.TestCase):
 
 
 
-class PathHandling(unittest.TestCase):
+class PathHandlingTests(unittest.TestCase):
     def testNormalizer(self):
         for inp, outp in [('a', ['a']),
                           ('/a', ['a']),
@@ -2660,7 +2674,7 @@ class BaseFTPRealmTests(unittest.TestCase):
 
 
 
-class FTPRealmTestCase(unittest.TestCase):
+class FTPRealmTests(unittest.TestCase):
     """
     Tests for L{ftp.FTPRealm}.
     """
@@ -2726,7 +2740,7 @@ class SystemFTPRealmTests(unittest.TestCase):
 
 
 
-class ErrnoToFailureTestCase(unittest.TestCase):
+class ErrnoToFailureTests(unittest.TestCase):
     """
     Tests for L{ftp.errnoToFailure} errno checking.
     """
@@ -2792,9 +2806,9 @@ class ErrnoToFailureTestCase(unittest.TestCase):
 
 
 
-class AnonymousFTPShellTestCase(unittest.TestCase):
+class AnonymousFTPShellTests(unittest.TestCase):
     """
-    Test anynomous shell properties.
+    Test anonymous shell properties.
     """
 
     def test_anonymousWrite(self):
@@ -3151,6 +3165,52 @@ class IFTPShellTestsMixin:
         return d
 
 
+    def test_statHardlinksNotImplemented(self):
+        """
+        If L{twisted.python.filepath.FilePath.getNumberOfHardLinks} is not
+        implemented, the number returned is 0
+        """
+        pathFunc = self.shell._path
+
+        def raiseNotImplemented():
+            raise NotImplementedError
+
+        def notImplementedFilePath(path):
+            f = pathFunc(path)
+            f.getNumberOfHardLinks = raiseNotImplemented
+            return f
+
+        self.shell._path = notImplementedFilePath
+
+        self.createDirectory('ned')
+        d = self.shell.stat(('ned',), ('hardlinks',))
+        self.assertEqual(self.successResultOf(d), [0])
+
+
+    def test_statOwnerGroupNotImplemented(self):
+        """
+        If L{twisted.python.filepath.FilePath.getUserID} or
+        L{twisted.python.filepath.FilePath.getGroupID} are not implemented,
+        the owner returned is "0" and the group is returned as "0"
+        """
+        pathFunc = self.shell._path
+
+        def raiseNotImplemented():
+            raise NotImplementedError
+
+        def notImplementedFilePath(path):
+            f = pathFunc(path)
+            f.getUserID = raiseNotImplemented
+            f.getGroupID = raiseNotImplemented
+            return f
+
+        self.shell._path = notImplementedFilePath
+
+        self.createDirectory('ned')
+        d = self.shell.stat(('ned',), ('owner', 'group'))
+        self.assertEqual(self.successResultOf(d), ["0", '0'])
+
+
     def test_statNotExisting(self):
         """
         stat should fail with L{ftp.FileNotFoundError} on a file that doesn't
@@ -3191,7 +3251,7 @@ class IFTPShellTestsMixin:
 
 
 
-class FTPShellTestCase(unittest.TestCase, IFTPShellTestsMixin):
+class FTPShellTests(unittest.TestCase, IFTPShellTestsMixin):
     """
     Tests for the C{ftp.FTPShell} object.
     """
@@ -3360,7 +3420,7 @@ class IReadWriteTestsMixin:
 
 
 
-class FTPReadWriteTestCase(unittest.TestCase, IReadWriteTestsMixin):
+class FTPReadWriteTests(unittest.TestCase, IReadWriteTestsMixin):
     """
     Tests for C{ftp._FileReader} and C{ftp._FileWriter}, the objects returned
     by the shell in C{openForReading}/C{openForWriting}.
@@ -3418,7 +3478,7 @@ class CloseTestShell:
 
 
 
-class FTPCloseTest(unittest.TestCase):
+class FTPCloseTests(unittest.TestCase):
     """Tests that the server invokes IWriteFile.close"""
 
     def test_write(self):
@@ -3479,4 +3539,3 @@ class FTPResponseCodeTests(unittest.TestCase):
                     value, seenValues,
                     "Duplicate code %r with value %r" % (key, value))
                 seenValues.add(value)
-

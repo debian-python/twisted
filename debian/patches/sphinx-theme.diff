@@ -1,0 +1,13 @@
+Index: b/docs/conf.py
+===================================================================
+--- a/docs/conf.py
++++ b/docs/conf.py
+@@ -120,6 +120,8 @@ on_rtd = os.environ.get('READTHEDOCS', N
+ if not on_rtd:
+     html_theme = 'twistedtrac'
+ 
++html_theme = 'twisteddefault'
++
+ # Theme options are theme-specific and customize the look and feel of a theme
+ # further.  For a list of options available for each theme, see the
+ # documentation.

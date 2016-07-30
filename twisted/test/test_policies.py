@@ -9,7 +9,7 @@ from __future__ import division, absolute_import
 
 from zope.interface import Interface, implementer, implementedBy
 
-from twisted.python.compat import NativeStringIO, _PY3
+from twisted.python.compat import NativeStringIO
 from twisted.trial import unittest
 from twisted.test.proto_helpers import StringTransport
 from twisted.test.proto_helpers import StringTransportWithDisconnection
@@ -121,7 +121,7 @@ class TestableTimeoutFactory(policies.TimeoutFactory):
 
 
 
-class WrapperTestCase(unittest.TestCase):
+class WrapperTests(unittest.TestCase):
     """
     Tests for L{WrappingFactory} and L{ProtocolWrapper}.
     """
@@ -345,7 +345,7 @@ class WrappingFactory(policies.WrappingFactory):
 
 
 
-class ThrottlingTestCase(unittest.TestCase):
+class ThrottlingTests(unittest.TestCase):
     """
     Tests for L{policies.ThrottlingFactory}.
     """
@@ -498,7 +498,7 @@ class ThrottlingTestCase(unittest.TestCase):
 
 
 
-class TimeoutTestCase(unittest.TestCase):
+class TimeoutFactoryTests(unittest.TestCase):
     """
     Tests for L{policies.TimeoutFactory}.
     """
@@ -527,11 +527,11 @@ class TimeoutTestCase(unittest.TestCase):
         """
         # Let almost 3 time units pass
         self.clock.pump([0.0, 0.5, 1.0, 1.0, 0.4])
-        self.failIf(self.proto.wrappedProtocol.disconnected)
+        self.assertFalse(self.proto.wrappedProtocol.disconnected)
 
         # Now let the timer elapse
         self.clock.pump([0.0, 0.2])
-        self.failUnless(self.proto.wrappedProtocol.disconnected)
+        self.assertTrue(self.proto.wrappedProtocol.disconnected)
 
 
     def test_sendAvoidsTimeout(self):
@@ -541,7 +541,7 @@ class TimeoutTestCase(unittest.TestCase):
         """
         # Let half the countdown period elapse
         self.clock.pump([0.0, 0.5, 1.0])
-        self.failIf(self.proto.wrappedProtocol.disconnected)
+        self.assertFalse(self.proto.wrappedProtocol.disconnected)
 
         # Send some data (self.proto is the /real/ proto's transport, so this
         # is the write that gets called)
@@ -549,18 +549,18 @@ class TimeoutTestCase(unittest.TestCase):
 
         # More time passes, putting us past the original timeout
         self.clock.pump([0.0, 1.0, 1.0])
-        self.failIf(self.proto.wrappedProtocol.disconnected)
+        self.assertFalse(self.proto.wrappedProtocol.disconnected)
 
         # Make sure writeSequence delays timeout as well
         self.proto.writeSequence([b'bytes'] * 3)
 
         # Tick tock
         self.clock.pump([0.0, 1.0, 1.0])
-        self.failIf(self.proto.wrappedProtocol.disconnected)
+        self.assertFalse(self.proto.wrappedProtocol.disconnected)
 
         # Don't write anything more, just let the timeout expire
         self.clock.pump([0.0, 2.0])
-        self.failUnless(self.proto.wrappedProtocol.disconnected)
+        self.assertTrue(self.proto.wrappedProtocol.disconnected)
 
 
     def test_receiveAvoidsTimeout(self):
@@ -569,19 +569,19 @@ class TimeoutTestCase(unittest.TestCase):
         """
         # Let half the countdown period elapse
         self.clock.pump([0.0, 1.0, 0.5])
-        self.failIf(self.proto.wrappedProtocol.disconnected)
+        self.assertFalse(self.proto.wrappedProtocol.disconnected)
 
         # Some bytes arrive, they should reset the counter
         self.proto.dataReceived(b'bytes bytes bytes')
 
         # We pass the original timeout
         self.clock.pump([0.0, 1.0, 1.0])
-        self.failIf(self.proto.wrappedProtocol.disconnected)
+        self.assertFalse(self.proto.wrappedProtocol.disconnected)
 
         # Nothing more arrives though, the new timeout deadline is passed,
         # the connection should be dropped.
         self.clock.pump([0.0, 1.0, 1.0])
-        self.failUnless(self.proto.wrappedProtocol.disconnected)
+        self.assertTrue(self.proto.wrappedProtocol.disconnected)
 
 
 
@@ -639,7 +639,7 @@ class TimeoutTester(protocol.Protocol, policies.TimeoutMixin):
 
 
 
-class TestTimeout(unittest.TestCase):
+class TimeoutMixinTests(unittest.TestCase):
     """
     Tests for L{policies.TimeoutMixin}.
     """
@@ -670,9 +670,9 @@ class TestTimeout(unittest.TestCase):
 
         # timeOut value is 3
         self.clock.pump([0, 0.5, 1.0, 1.0])
-        self.failIf(self.proto.timedOut)
+        self.assertFalse(self.proto.timedOut)
         self.clock.pump([0, 1.0])
-        self.failUnless(self.proto.timedOut)
+        self.assertTrue(self.proto.timedOut)
 
 
     def test_noTimeout(self):
@@ -682,12 +682,12 @@ class TestTimeout(unittest.TestCase):
         self.proto.makeConnection(StringTransport())
 
         self.clock.pump([0, 0.5, 1.0, 1.0])
-        self.failIf(self.proto.timedOut)
+        self.assertFalse(self.proto.timedOut)
         self.proto.dataReceived(b'hello there')
         self.clock.pump([0, 1.0, 1.0, 0.5])
-        self.failIf(self.proto.timedOut)
+        self.assertFalse(self.proto.timedOut)
         self.clock.pump([0, 1.0])
-        self.failUnless(self.proto.timedOut)
+        self.assertTrue(self.proto.timedOut)
 
 
     def test_resetTimeout(self):
@@ -702,9 +702,9 @@ class TestTimeout(unittest.TestCase):
         self.assertEqual(self.proto.timeOut, 1)
 
         self.clock.pump([0, 0.9])
-        self.failIf(self.proto.timedOut)
+        self.assertFalse(self.proto.timedOut)
         self.clock.pump([0, 0.2])
-        self.failUnless(self.proto.timedOut)
+        self.assertTrue(self.proto.timedOut)
 
 
     def test_cancelTimeout(self):
@@ -718,7 +718,7 @@ class TestTimeout(unittest.TestCase):
         self.assertEqual(self.proto.timeOut, None)
 
         self.clock.pump([0, 5, 5, 5])
-        self.failIf(self.proto.timedOut)
+        self.assertFalse(self.proto.timedOut)
 
 
     def test_return(self):
@@ -737,7 +737,7 @@ class TestTimeout(unittest.TestCase):
 
 
 
-class LimitTotalConnectionsFactoryTestCase(unittest.TestCase):
+class LimitTotalConnectionsFactoryTests(unittest.TestCase):
     """Tests for policies.LimitTotalConnectionsFactory"""
     def testConnectionCounting(self):
         # Make a basic factory
@@ -813,7 +813,7 @@ class TestLoggingFactory(policies.TrafficLoggingFactory):
 
 
 
-class LoggingFactoryTestCase(unittest.TestCase):
+class LoggingFactoryTests(unittest.TestCase):
     """
     Tests for L{policies.TrafficLoggingFactory}.
     """
@@ -832,7 +832,7 @@ class LoggingFactoryTestCase(unittest.TestCase):
 
         v = f.openFile.getvalue()
         self.assertIn('*', v)
-        self.failIf(t.value())
+        self.assertFalse(t.value())
 
         p.dataReceived(b'here are some bytes')
 

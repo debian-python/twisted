@@ -5,6 +5,8 @@
 Test cases for L{twisted.names.client}.
 """
 
+from __future__ import division, absolute_import
+
 from zope.interface.verify import verifyClass, verifyObject
 
 from twisted.python import failure
@@ -22,7 +24,7 @@ from twisted.names.error import DNSQueryTimeoutError
 from twisted.names.common import ResolverBase
 
 from twisted.names.test.test_hosts import GoodTempPathMixin
-from twisted.names.test.test_rootresolve import MemoryReactor
+from twisted.names.test.test_util import MemoryReactor
 
 from twisted.test import proto_helpers
 
@@ -40,7 +42,7 @@ class FakeResolver(ResolverBase):
     def _lookup(self, name, cls, qtype, timeout):
         """
         The getHostByNameTest does a different type of query that requires it
-        return an A record from an ALL_RECORDS lookup, so we accomodate that
+        return an A record from an ALL_RECORDS lookup, so we accommodate that
         here.
         """
         if name == b'getHostByNameTest':
@@ -796,7 +798,7 @@ class ResolverTests(unittest.TestCase):
 
 
 
-class ClientTestCase(unittest.TestCase):
+class ClientTests(unittest.TestCase):
 
     def setUp(self):
         """
@@ -1139,7 +1141,7 @@ class FakeDNSDatagramProtocol(object):
 
 
 
-class RetryLogic(unittest.TestCase):
+class RetryLogicTests(unittest.TestCase):
     """
     Tests for query retrying implemented by L{client.Resolver}.
     """

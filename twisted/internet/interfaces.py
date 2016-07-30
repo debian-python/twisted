@@ -11,9 +11,6 @@ from __future__ import division, absolute_import
 
 from zope.interface import Interface, Attribute
 
-from twisted.python import deprecate
-from twisted.python.versions import Version
-
 
 class IAddress(Interface):
     """
@@ -875,7 +872,7 @@ class IReactorMulticast(Interface):
     UDP socket methods that support multicast.
 
     IMPORTANT: This is an experimental new interface. It may change
-    without backwards compatability. Suggestions are welcome.
+    without backwards compatibility. Suggestions are welcome.
     """
 
     def listenMulticast(port, protocol, interface='', maxPacketSize=8192,
@@ -1219,7 +1216,49 @@ class IDelayedCall(Interface):
                  called or cancelled.
         """
 
-class IReactorThreads(Interface):
+
+
+class IReactorFromThreads(Interface):
+    """
+    This interface is the set of thread-safe methods which may be invoked on
+    the reactor from other threads.
+
+    @since: 15.4
+    """
+
+    def callFromThread(callable, *args, **kw):
+        """
+        Cause a function to be executed by the reactor thread.
+
+        Use this method when you want to run a function in the reactor's thread
+        from another thread.  Calling L{callFromThread} should wake up the main
+        thread (where L{reactor.run() <IReactorCore.run>} is executing) and run
+        the given callable in that thread.
+
+        If you're writing a multi-threaded application the C{callable} may need
+        to be thread safe, but this method doesn't require it as such.  If you
+        want to call a function in the next mainloop iteration, but you're in
+        the same thread, use L{callLater} with a delay of 0.
+        """
+
+
+class IReactorInThreads(Interface):
+    """
+    This interface contains the methods exposed by a reactor which will let you
+    run functions in another thread.
+
+    @since: 15.4
+    """
+
+    def callInThread(callable, *args, **kwargs):
+        """
+        Run the given callable object in a separate thread, with the given
+        arguments and keyword arguments.
+        """
+
+
+
+class IReactorThreads(IReactorFromThreads, IReactorInThreads):
     """
     Dispatch methods to be run in threads.
 
@@ -1228,40 +1267,19 @@ class IReactorThreads(Interface):
 
     def getThreadPool():
         """
-        Return the threadpool used by L{callInThread}.  Create it first if
-        necessary.
+        Return the threadpool used by L{IReactorInThreads.callInThread}.
+        Create it first if necessary.
 
         @rtype: L{twisted.python.threadpool.ThreadPool}
-        """
-
-
-    def callInThread(callable, *args, **kwargs):
-        """
-        Run the callable object in a separate thread.
-        """
-
-
-    def callFromThread(callable, *args, **kw):
-        """
-        Cause a function to be executed by the reactor thread.
-
-        Use this method when you want to run a function in the reactor's thread
-        from another thread.  Calling L{callFromThread} should wake up the main
-        thread (where L{reactor.run()<reactor.run>} is executing) and run the
-        given callable in that thread.
-
-        If you're writing a multi-threaded application the C{callable} may need
-        to be thread safe, but this method doesn't require it as such. If you
-        want to call a function in the next mainloop iteration, but you're in
-        the same thread, use L{callLater} with a delay of 0.
         """
 
 
     def suggestThreadPoolSize(size):
         """
         Suggest the size of the internal threadpool used to dispatch functions
-        passed to L{callInThread}.
+        passed to L{IReactorInThreads.callInThread}.
         """
+
 
 
 class IReactorCore(Interface):
@@ -2189,6 +2207,28 @@ class IOpenSSLClientConnectionCreator(Interface):
 
 
 
+class IProtocolNegotiationFactory(Interface):
+    """
+    A provider of L{IProtocolNegotiationFactory} can provide information about
+    the various protocols that the factory can create implementations of. This
+    can be used, for example, to provide protocol names for Next Protocol
+    Negotation and Application Layer Protocol Negotiation.
+
+    @see: L{twisted.internet.ssl}
+    """
+
+    def acceptableProtocols():
+        """
+        Returns a list of protocols that can be spoken by the connection
+        factory in the form of ALPN tokens, as laid out in the IANA registry
+        for ALPN tokens.
+
+        @return: a list of ALPN tokens in order of preference.
+        @rtype: L{list} of L{bytes}
+        """
+
+
+
 class ITLSTransport(ITCPTransport):
     """
     A TCP transport that supports switching to TLS midstream.
@@ -2224,6 +2264,26 @@ class ISSLTransport(ITCPTransport):
         """
         Return an object with the peer's certificate info.
         """
+
+
+
+class INegotiated(ISSLTransport):
+    """
+    A TLS based transport that supports using ALPN/NPN to negotiate the
+    protocol to be used inside the encrypted tunnel.
+    """
+    negotiatedProtocol = Attribute(
+        """
+        The protocol selected to be spoken using ALPN/NPN. The result from ALPN
+        is preferred to the result from NPN if both were used. If the remote
+        peer does not support ALPN or NPN, or neither NPN or ALPN are available
+        on this machine, will be C{None}. Otherwise, will be the name of the
+        selected protocol as C{bytes}. Note that until the handshake has
+        completed this property may incorrectly return C{None}: wait until data
+        has been received before trusting it (see
+        https://twistedmatrix.com/trac/ticket/6024).
+        """
+    )
 
 
 
@@ -2519,7 +2579,8 @@ class IStreamClientEndpoint(Interface):
 
         @param protocolFactory: A provider of L{IProtocolFactory}
         @return: A L{Deferred} that results in an L{IProtocol} upon successful
-            connection otherwise a L{ConnectError}
+            connection otherwise a L{Failure} wrapping L{ConnectError} or
+            L{NoProtocol <twisted.internet.error.NoProtocol>}.
         """
 
 
@@ -2547,14 +2608,17 @@ class IStreamServerEndpoint(Interface):
 class IStreamServerEndpointStringParser(Interface):
     """
     An L{IStreamServerEndpointStringParser} is like an
-    L{IStreamClientEndpointStringParser}, except for L{IStreamServerEndpoint}s
-    instead of clients.  It integrates with L{endpoints.serverFromString} in
-    much the same way.
+    L{IStreamClientEndpointStringParserWithReactor}, except for
+    L{IStreamServerEndpoint}s instead of clients.  It integrates with
+    L{endpoints.serverFromString} in much the same way.
     """
 
     prefix = Attribute(
         """
-        @see: L{IStreamClientEndpointStringParser.prefix}
+        A C{str}, the description prefix to respond to.  For example, an
+        L{IStreamServerEndpointStringParser} plugin which had C{"foo"} for its
+        C{prefix} attribute would be called for endpoint descriptions like
+        C{"foo:bar:baz"} or C{"foo:"}.
         """
     )
 
@@ -2564,85 +2628,18 @@ class IStreamServerEndpointStringParser(Interface):
         Parse a stream server endpoint from a reactor and string-only arguments
         and keyword arguments.
 
-        @see: L{IStreamClientEndpointStringParser.parseStreamClient}
+        @see: L{IStreamClientEndpointStringParserWithReactor.parseStreamClient}
 
         @return: a stream server endpoint
         @rtype: L{IStreamServerEndpoint}
         """
 
 
-
-class IStreamClientEndpointStringParser(Interface):
-    """
-    This interface is deprecated since Twisted 14.0; please use the
-    L{IStreamClientEndpointStringParserWithReactor} interface instead.
-
-    An L{IStreamClientEndpointStringParser} is a parser which can convert
-    a set of string C{*args} and C{**kwargs} into an L{IStreamClientEndpoint}
-    provider.
-
-    This interface is really only useful in the context of the plugin system
-    for L{endpoints.clientFromString}.  See the document entitled "I{The
-    Twisted Plugin System}" for more details on how to write a plugin.
-
-    If you place an L{IStreamClientEndpointStringParser} plugin in the
-    C{twisted.plugins} package, that plugin's C{parseStreamClient} method will
-    be used to produce endpoints for any description string that begins with
-    the result of that L{IStreamClientEndpointStringParser}'s prefix attribute.
-
-    If a L{IStreamClientEndpointStringParserWithReactor} plugin and
-    L{IStreamClientEndpointStringParser} plugin share the same prefix, the
-    L{IStreamClientEndpointStringParserWithReactor} plugin will be preferred.
-
-    """
-
-    prefix = Attribute(
-        """
-        A C{str}, the description prefix to respond to.  For example, an
-        L{IStreamClientEndpointStringParser} plugin which had C{"foo"} for its
-        C{prefix} attribute would be called for endpoint descriptions like
-        C{"foo:bar:baz"} or C{"foo:"}.
-        """
-    )
-
-
-    def parseStreamClient(*args, **kwargs):
-        """
-        This method is invoked by L{endpoints.clientFromString}, if the type of
-        endpoint matches the return value from this
-        L{IStreamClientEndpointStringParser}'s C{prefix} method.
-
-        @param args: The string arguments, minus the endpoint type, in the
-            endpoint description string, parsed according to the rules
-            described in L{endpoints.quoteStringArgument}.  For example, if the
-            description were C{"my-type:foo:bar:baz=qux"}, C{args} would be
-            C{('foo','bar')}
-
-        @param kwargs: The string arguments from the endpoint description
-            passed as keyword arguments.  For example, if the description were
-            C{"my-type:foo:bar:baz=qux"}, C{kwargs} would be
-            C{dict(baz='qux')}.
-
-        @return: a client endpoint
-        @rtype: L{IStreamClientEndpoint}
-        """
-
-deprecate.deprecatedModuleAttribute(
-    Version("Twisted", 14, 0, 0),
-    "This interface has been superseded by "
-    "IStreamClientEndpointStringParserWithReactor.",
-    __name__,
-    "IStreamClientEndpointStringParser")
-
-
-
 class IStreamClientEndpointStringParserWithReactor(Interface):
     """
     An L{IStreamClientEndpointStringParserWithReactor} is a parser which can
     convert a set of string C{*args} and C{**kwargs} into an
-    L{IStreamClientEndpoint} provider. It's much like
-    L{IStreamClientEndpointStringParser}, except that the reactor is passed
-    along to L{parseStreamClient} too.
+    L{IStreamClientEndpoint} provider.
 
     This interface is really only useful in the context of the plugin system
     for L{endpoints.clientFromString}.  See the document entitled "I{The
@@ -2653,10 +2650,6 @@ class IStreamClientEndpointStringParserWithReactor(Interface):
     will be used to produce endpoints for any description string that begins
     with the result of that L{IStreamClientEndpointStringParserWithReactor}'s
     prefix attribute.
-
-    If a L{IStreamClientEndpointStringParserWithReactor} plugin and
-    L{IStreamClientEndpointStringParser} plugin share the same prefix, the
-    L{IStreamClientEndpointStringParserWithReactor} plugin will be preferred.
     """
 
     prefix = Attribute(

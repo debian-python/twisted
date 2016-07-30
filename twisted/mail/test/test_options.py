@@ -11,18 +11,16 @@ from twisted.python.usage import UsageError
 from twisted.mail import protocols
 from twisted.mail.tap import Options, makeService
 from twisted.python.filepath import FilePath
+from twisted.python.reflect import requireModule
 from twisted.internet import endpoints, defer
-from twisted.python import util
 
-try:
-    import OpenSSL
-except ImportError, e:
-    sslSkip = str(e)
+if requireModule('OpenSSL') is None:
+    sslSkip = 'Missing OpenSSL package.'
 else:
     sslSkip = None
 
 
-class OptionsTestCase(TestCase):
+class OptionsTests(TestCase):
     """
     Tests for the command line option parser used for I{twistd mail}.
     """
@@ -126,11 +124,11 @@ class OptionsTestCase(TestCase):
         options = Options()
         options.parseOptions(['--no-pop3'])
         self.assertEqual(options._getEndpoints(None, 'pop3'), [])
-        self.assertNotEquals(options._getEndpoints(None, 'smtp'), [])
+        self.assertNotEqual(options._getEndpoints(None, 'smtp'), [])
 
         options = Options()
         options.parseOptions(['--no-smtp'])
-        self.assertNotEquals(options._getEndpoints(None, 'pop3'), [])
+        self.assertNotEqual(options._getEndpoints(None, 'pop3'), [])
         self.assertEqual(options._getEndpoints(None, 'smtp'), [])
 
 

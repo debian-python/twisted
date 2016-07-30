@@ -55,12 +55,14 @@ from twisted.python.failure import Failure
 from twisted.python import log
 from twisted.python.reflect import safe_str
 from twisted.internet.interfaces import (
-    ISystemHandle, ISSLTransport, IPushProducer, ILoggingContext,
+    ISystemHandle, INegotiated, IPushProducer, ILoggingContext,
     IOpenSSLServerConnectionCreator, IOpenSSLClientConnectionCreator,
+    IProtocolNegotiationFactory
 )
 from twisted.internet.main import CONNECTION_LOST
 from twisted.internet.protocol import Protocol
 from twisted.internet.task import cooperate
+from twisted.internet._sslverify import _setAcceptableProtocols
 from twisted.protocols.policies import ProtocolWrapper, WrappingFactory
 
 
@@ -210,7 +212,7 @@ class _ProducerMembrane(object):
 
 
 
-@implementer(ISystemHandle, ISSLTransport)
+@implementer(ISystemHandle, INegotiated)
 class TLSMemoryBIOProtocol(ProtocolWrapper):
     """
     L{TLSMemoryBIOProtocol} is a protocol wrapper which uses OpenSSL via a
@@ -275,6 +277,7 @@ class TLSMemoryBIOProtocol(ProtocolWrapper):
     _writeBlockedOnRead = False
     _producer = None
     _aborted = False
+    _shuttingDown = False
 
     def __init__(self, factory, wrappedProtocol, _connectWrapped=True):
         ProtocolWrapper.__init__(self, factory, wrappedProtocol)
@@ -318,15 +321,20 @@ class TLSMemoryBIOProtocol(ProtocolWrapper):
         # Now that we ourselves have a transport (initialized by the
         # ProtocolWrapper.makeConnection call above), kick off the TLS
         # handshake.
-        try:
-            self._tlsConnection.do_handshake()
-        except WantReadError:
-            # This is the expected case - there's no data in the connection's
-            # input buffer yet, so it won't be able to complete the whole
-            # handshake now.  If this is the speak-first side of the
-            # connection, then some bytes will be in the send buffer now; flush
-            # them.
-            self._flushSendBIO()
+
+        # The connection might already be aborted (eg. by a callback during
+        # connection setup), so don't even bother trying to handshake in that
+        # case.
+        if not self._aborted:
+            try:
+                self._tlsConnection.do_handshake()
+            except WantReadError:
+                # This is the expected case - there's no data in the
+                # connection's input buffer yet, so it won't be able to
+                # complete the whole handshake now. If this is the speak-first
+                # side of the connection, then some bytes will be in the send
+                # buffer now; flush them.
+                self._flushSendBIO()
 
 
     def _flushSendBIO(self):
@@ -426,6 +434,7 @@ class TLSMemoryBIOProtocol(ProtocolWrapper):
         """
         Initiate, or reply to, the shutdown handshake of the TLS layer.
         """
+        self._shuttingDown = True
         try:
             shutdownSuccess = self._tlsConnection.shutdown()
         except Error:
@@ -483,6 +492,14 @@ class TLSMemoryBIOProtocol(ProtocolWrapper):
         """
         if self.disconnecting:
             return
+        # If connection setup has not finished, OpenSSL 1.0.2f+ will not shut
+        # down the connection until we write some data to the connection which
+        # allows the handshake to complete. However, since no data should be
+        # written after loseConnection, this means we'll be stuck forever
+        # waiting for shutdown to complete. Instead, we simply abort the
+        # connection without trying to shut down cleanly:
+        if not self._handshakeDone and not self._writeBlockedOnRead:
+            self.abortConnection()
         self.disconnecting = True
         if not self._writeBlockedOnRead and self._producer is None:
             self._shutdownTLS()
@@ -584,6 +601,34 @@ class TLSMemoryBIOProtocol(ProtocolWrapper):
 
     def getPeerCertificate(self):
         return self._tlsConnection.get_peer_certificate()
+
+
+    @property
+    def negotiatedProtocol(self):
+        """
+        @see: L{INegotiated.negotiatedProtocol}
+        """
+        protocolName = None
+
+        try:
+            # If ALPN is not implemented that's ok, NPN might be.
+            protocolName = self._tlsConnection.get_alpn_proto_negotiated()
+        except (NotImplementedError, AttributeError):
+            pass
+
+        if protocolName not in (b'', None):
+            # A protocol was selected using ALPN.
+            return protocolName
+
+        try:
+            protocolName = self._tlsConnection.get_next_proto_negotiated()
+        except (NotImplementedError, AttributeError):
+            pass
+
+        if protocolName != b'':
+            return protocolName
+
+        return None
 
 
     def registerProducer(self, producer, streaming):
@@ -784,6 +829,26 @@ class TLSMemoryBIOFactory(WrappingFactory):
         return "%s (TLS)" % (logPrefix,)
 
 
+    def _applyProtocolNegotiation(self, connection):
+        """
+        Applies ALPN/NPN protocol neogitation to the connection, if the factory
+        supports it.
+
+        @param connection: The OpenSSL connection object to have ALPN/NPN added
+            to it.
+        @type connection: L{OpenSSL.SSL.Connection}
+
+        @return: Nothing
+        @rtype: L{None}
+        """
+        if IProtocolNegotiationFactory.providedBy(self.wrappedFactory):
+            protocols = self.wrappedFactory.acceptableProtocols()
+            context = connection.get_context()
+            _setAcceptableProtocols(context, protocols)
+
+        return
+
+
     def _createConnection(self, tlsProtocol):
         """
         Create an OpenSSL connection and set it up good.
@@ -797,9 +862,11 @@ class TLSMemoryBIOFactory(WrappingFactory):
         connectionCreator = self._connectionCreator
         if self._creatorInterface is IOpenSSLClientConnectionCreator:
             connection = connectionCreator.clientConnectionForTLS(tlsProtocol)
+            self._applyProtocolNegotiation(connection)
             connection.set_connect_state()
         else:
             connection = connectionCreator.serverConnectionForTLS(tlsProtocol)
+            self._applyProtocolNegotiation(connection)
             connection.set_accept_state()
         return connection
 

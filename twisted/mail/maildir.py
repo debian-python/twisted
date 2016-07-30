@@ -97,11 +97,11 @@ def initializeMaildir(dir):
     @param dir: The path name for a user directory.
     """
     if not os.path.isdir(dir):
-        os.mkdir(dir, 0700)
+        os.mkdir(dir, 0o700)
         for subdir in ['new', 'cur', 'tmp', '.Trash']:
-            os.mkdir(os.path.join(dir, subdir), 0700)
+            os.mkdir(os.path.join(dir, subdir), 0o700)
         for subdir in ['new', 'cur', 'tmp']:
-            os.mkdir(os.path.join(dir, '.Trash', subdir), 0700)
+            os.mkdir(os.path.join(dir, '.Trash', subdir), 0o700)
         # touch
         open(os.path.join(dir, '.Trash', 'maildirfolder'), 'w').close()
 
@@ -459,7 +459,8 @@ class _MaildirMailboxAppendMessageTask:
             try:
                 self.osrename(self.tmpname, newname)
                 break
-            except OSError, (err, estr):
+            except OSError as e:
+                (err, estr) = e.args
                 import errno
                 # if the newname exists, retry with a new newname.
                 if err != errno.EEXIST:
@@ -484,7 +485,7 @@ class _MaildirMailboxAppendMessageTask:
         while True:
             self.tmpname = os.path.join(self.mbox.path, "tmp", _generateMaildirName())
             try:
-                self.fh = self.osopen(self.tmpname, attr, 0600)
+                self.fh = self.osopen(self.tmpname, attr, 0o600)
                 return None
             except OSError:
                 tries += 1
@@ -626,7 +627,8 @@ class MaildirMailbox(pop3.Mailbox):
         for (real, trash) in self.deleted.items():
             try:
                 os.rename(trash, real)
-            except OSError, (err, estr):
+            except OSError as e:
+                (err, estr) = e.args
                 import errno
                 # If the file has been deleted from disk, oh well!
                 if err != errno.ENOENT:
@@ -695,7 +697,7 @@ class StringListMailbox:
             the mailbox.
         """
         if i is None:
-            return [self.listMessages(i) for i in range(len(self.msgs))]
+            return [self.listMessages(msg) for msg in range(len(self.msgs))]
         if i in self._delete:
             return 0
         return len(self.msgs[i])
@@ -862,7 +864,7 @@ class MaildirDirdbmDomain(AbstractMaildirDomain):
         The mailbox for the authenticated user will be returned only if the
         given interfaces include L{IMailbox <pop3.IMailbox>}.  Requests for
         anonymous access will be met with a mailbox containing a message
-        indicating that an internal error has occured.
+        indicating that an internal error has occurred.
 
         @type avatarId: L{bytes} or C{twisted.cred.checkers.ANONYMOUS}
         @param avatarId: A string which identifies a user or an object which

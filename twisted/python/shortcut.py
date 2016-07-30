@@ -29,7 +29,7 @@ class Shortcut:
     @param path: Location of the target
     @param arguments: If path points to an executable, optional arguments to
                       pass
-    @param description: Human-readable decription of target
+    @param description: Human-readable description of target
     @param workingdir: Directory from which target is launched
     @param iconpath: Filename that contains an icon for the shortcut
     @param iconidx: If iconpath is set, optional index of the icon desired
@@ -72,5 +72,5 @@ class Shortcut:
     def __getattr__( self, name ):
         if name != "_base":
             return getattr(self._base, name)
-        raise AttributeError, "%s instance has no attribute %s" % \
-                (self.__class__.__name__, name)
+        raise AttributeError("%s instance has no attribute %s" % (
+            self.__class__.__name__, name))

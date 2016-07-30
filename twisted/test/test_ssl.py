@@ -11,6 +11,7 @@ from twisted.trial import unittest
 from twisted.internet import protocol, reactor, interfaces, defer
 from twisted.internet.error import ConnectionDone
 from twisted.protocols import basic
+from twisted.python.reflect import requireModule
 from twisted.python.runtime import platform
 from twisted.test.test_tcp import ProperlyCloseFilesMixin
 
@@ -261,7 +262,8 @@ class ContextGeneratingMixin:
 if SSL is not None:
     class ServerTLSContext(ssl.DefaultOpenSSLContextFactory):
         """
-        A context factory with a default method set to L{SSL.TLSv1_METHOD}.
+        A context factory with a default method set to
+        L{OpenSSL.SSL.TLSv1_METHOD}.
         """
         isClient = False
 
@@ -271,7 +273,7 @@ if SSL is not None:
 
 
 
-class StolenTCPTestCase(ProperlyCloseFilesMixin, unittest.TestCase):
+class StolenTCPTests(ProperlyCloseFilesMixin, unittest.TestCase):
     """
     For SSL transports, test many of the same things which are tested for
     TCP transports.
@@ -297,19 +299,19 @@ class StolenTCPTestCase(ProperlyCloseFilesMixin, unittest.TestCase):
 
     def getHandleExceptionType(self):
         """
-        Return L{SSL.Error} as the expected error type which will be raised by
-        a write to the L{OpenSSL.SSL.Connection} object after it has been
-        closed.
+        Return L{OpenSSL.SSL.Error} as the expected error type which will be
+        raised by a write to the L{OpenSSL.SSL.Connection} object after it has
+        been closed.
         """
         return SSL.Error
 
 
     def getHandleErrorCode(self):
         """
-        Return the argument L{SSL.Error} will be constructed with for this
-        case.  This is basically just a random OpenSSL implementation detail.
-        It would be better if this test worked in a way which did not require
-        this.
+        Return the argument L{OpenSSL.SSL.Error} will be constructed with for
+        this case. This is basically just a random OpenSSL implementation
+        detail. It would be better if this test worked in a way which did not
+        require this.
         """
         # Windows 2000 SP 4 and Windows XP SP 2 give back WSAENOTSOCK for
         # SSL.Connection.write for some reason.  The twisted.protocols.tls
@@ -323,9 +325,7 @@ class StolenTCPTestCase(ProperlyCloseFilesMixin, unittest.TestCase):
 
         # So figure out if twisted.protocols.tls is in use.  If it can be
         # imported, it should be.
-        try:
-            import twisted.protocols.tls
-        except ImportError:
+        if requireModule('twisted.protocols.tls') is None:
             # It isn't available, so we expect WSAENOTSOCK if we're on Windows.
             if platform.getType() == 'win32':
                 return errno.WSAENOTSOCK
@@ -336,7 +336,7 @@ class StolenTCPTestCase(ProperlyCloseFilesMixin, unittest.TestCase):
 
 
 
-class TLSTestCase(unittest.TestCase):
+class TLSTests(unittest.TestCase):
     """
     Tests for startTLS support.
 
@@ -419,7 +419,7 @@ class TLSTestCase(unittest.TestCase):
                 self.serverFactory.lines,
                 UnintelligentProtocol.pretext
             )
-            self.failUnless(self.serverFactory.rawdata,
+            self.assertTrue(self.serverFactory.rawdata,
                             "No encrypted bytes received")
         d = self._runTest(UnintelligentProtocol(),
                           LineCollector(False, self.fillBuffer))
@@ -441,7 +441,7 @@ class TLSTestCase(unittest.TestCase):
 
 
 
-class SpammyTLSTestCase(TLSTestCase):
+class SpammyTLSTests(TLSTests):
     """
     Test TLS features with bytes sitting in the out buffer.
     """
@@ -449,7 +449,7 @@ class SpammyTLSTestCase(TLSTestCase):
 
 
 
-class BufferingTestCase(unittest.TestCase):
+class BufferingTests(unittest.TestCase):
     serverProto = None
     clientProto = None
 
@@ -484,7 +484,7 @@ class BufferingTestCase(unittest.TestCase):
 
 
 
-class ConnectionLostTestCase(unittest.TestCase, ContextGeneratingMixin):
+class ConnectionLostTests(unittest.TestCase, ContextGeneratingMixin):
     """
     SSL connection closing tests.
     """
@@ -505,7 +505,7 @@ class ConnectionLostTestCase(unittest.TestCase, ContextGeneratingMixin):
         clientProtocolFactory = protocol.ClientFactory()
         clientProtocolFactory.protocol = ImmediatelyDisconnectingProtocol
         clientProtocolFactory.connectionDisconnected = defer.Deferred()
-        clientConnector = reactor.connectSSL('127.0.0.1',
+        reactor.connectSSL('127.0.0.1',
             serverPort.getHost().port, clientProtocolFactory, self.clientCtxFactory)
 
         return clientProtocolFactory.connectionDisconnected.addCallback(
@@ -553,7 +553,7 @@ class ConnectionLostTestCase(unittest.TestCase, ContextGeneratingMixin):
         clientProtocol = CloseAfterHandshake()
         clientProtocolFactory = protocol.ClientFactory()
         clientProtocolFactory.protocol = lambda: clientProtocol
-        clientConnector = reactor.connectSSL('127.0.0.1',
+        reactor.connectSSL('127.0.0.1',
             serverPort.getHost().port, clientProtocolFactory, self.clientCtxFactory)
 
         def checkResult(failure):
@@ -589,7 +589,7 @@ class ConnectionLostTestCase(unittest.TestCase, ContextGeneratingMixin):
         clientProtocol.connectionLost = clientConnLost.callback
         clientProtocolFactory = protocol.ClientFactory()
         clientProtocolFactory.protocol = lambda: clientProtocol
-        clientConnector = reactor.connectSSL('127.0.0.1',
+        reactor.connectSSL('127.0.0.1',
             serverPort.getHost().port, clientProtocolFactory, self.clientCtxFactory)
 
         dl = defer.DeferredList([serverConnLost, clientConnLost], consumeErrors=True)
@@ -599,8 +599,8 @@ class ConnectionLostTestCase(unittest.TestCase, ContextGeneratingMixin):
     def _cbLostConns(self, results):
         (sSuccess, sResult), (cSuccess, cResult) = results
 
-        self.failIf(sSuccess)
-        self.failIf(cSuccess)
+        self.assertFalse(sSuccess)
+        self.assertFalse(cSuccess)
 
         acceptableErrors = [SSL.Error]
 
@@ -719,8 +719,8 @@ class ClientContextFactoryTests(unittest.TestCase):
 
 
 if interfaces.IReactorSSL(reactor, None) is None:
-    for tCase in [StolenTCPTestCase, TLSTestCase, SpammyTLSTestCase,
-                  BufferingTestCase, ConnectionLostTestCase,
+    for tCase in [StolenTCPTests, TLSTests, SpammyTLSTests,
+                  BufferingTests, ConnectionLostTests,
                   DefaultOpenSSLContextFactoryTests,
                   ClientContextFactoryTests]:
         tCase.skip = "Reactor does not support SSL, cannot run SSL tests"

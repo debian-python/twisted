@@ -8,7 +8,7 @@ Tests for L{twisted.protocols.tls}.
 from __future__ import division, absolute_import
 
 from zope.interface.verify import verifyObject
-from zope.interface import Interface, directlyProvides
+from zope.interface import Interface, directlyProvides, implementer
 
 from twisted.python.compat import intToBytes, iterbytes
 try:
@@ -32,6 +32,7 @@ from twisted.python.failure import Failure
 from twisted.python import log
 from twisted.internet.interfaces import ISystemHandle, ISSLTransport
 from twisted.internet.interfaces import IPushProducer
+from twisted.internet.interfaces import IProtocolNegotiationFactory
 from twisted.internet.error import ConnectionDone, ConnectionLost
 from twisted.internet.defer import Deferred, gatherResults
 from twisted.internet.protocol import Protocol, ClientFactory, ServerFactory
@@ -403,8 +404,9 @@ class TLSMemoryBIOTests(TestCase):
             cert = sslClientProtocol.getPeerCertificate()
             self.assertIsInstance(cert, X509Type)
             self.assertEqual(
-                cert.digest('md5'),
-                b'9B:A4:AB:43:10:BE:82:AE:94:3E:6B:91:F2:F3:40:E8')
+                cert.digest('sha1'),
+                # openssl x509 -noout -sha1 -fingerprint -in server.pem
+                b'45:DD:FD:E2:BD:BF:8B:D0:00:B7:D2:7A:BB:20:F5:34:05:4B:15:80')
         handshakeDeferred.addCallback(cbHandshook)
         return handshakeDeferred
 
@@ -707,6 +709,7 @@ class TLSMemoryBIOTests(TestCase):
             # will be written out before the connection is closed, rather than
             # just small amounts that can be returned in a single bio_read:
             clientProtocol.transport.write(chunkOfBytes)
+            serverProtocol.transport.write(b'x')
             serverProtocol.transport.loseConnection()
 
             # Now wait for the client and server to notice.
@@ -771,27 +774,27 @@ class TLSMemoryBIOTests(TestCase):
         If TLSMemoryBIOProtocol.loseConnection is called multiple times, all
         but the first call have no effect.
         """
-        wrapperFactory = TLSMemoryBIOFactory(ClientTLSContext(),
-                                             True, ClientFactory())
-        tlsProtocol = TLSMemoryBIOProtocol(wrapperFactory, Protocol())
-        transport = StringTransport()
-        tlsProtocol.makeConnection(transport)
-        self.assertEqual(tlsProtocol.disconnecting, False)
-
+        tlsClient, tlsServer, handshakeDeferred, disconnectDeferred = (
+            self.handshakeProtocols())
+        self.successResultOf(handshakeDeferred)
         # Make sure loseConnection calls _shutdownTLS the first time (mostly
         # to make sure we've overriding it correctly):
         calls = []
-        def _shutdownTLS(shutdown=tlsProtocol._shutdownTLS):
+        def _shutdownTLS(shutdown=tlsClient._shutdownTLS):
             calls.append(1)
             return shutdown()
-        tlsProtocol._shutdownTLS = _shutdownTLS
-        tlsProtocol.loseConnection()
-        self.assertEqual(tlsProtocol.disconnecting, True)
+        tlsClient._shutdownTLS = _shutdownTLS
+        tlsClient.write(b'x')
+        tlsClient.loseConnection()
+        self.assertEqual(tlsClient.disconnecting, True)
         self.assertEqual(calls, [1])
 
         # Make sure _shutdownTLS isn't called a second time:
-        tlsProtocol.loseConnection()
+        tlsClient.loseConnection()
         self.assertEqual(calls, [1])
+
+        # We do successfully disconnect at some point:
+        return disconnectDeferred
 
 
     def test_unexpectedEOF(self):
@@ -1520,3 +1523,219 @@ class NonStreamingProducerTests(TestCase):
         nsProducer = NonStreamingProducer(consumer)
         streamingProducer = _PullToPush(nsProducer, consumer)
         self.assertTrue(verifyObject(IPushProducer, streamingProducer))
+
+
+
+@implementer(IProtocolNegotiationFactory)
+class ClientNegotiationFactory(ClientFactory):
+    """
+    A L{ClientFactory} that has a set of acceptable protocols for NPN/ALPN
+    negotiation.
+    """
+    def __init__(self, acceptableProtocols):
+        """
+        Create a L{ClientNegotiationFactory}.
+
+        @param acceptableProtocols: The protocols the client will accept
+            speaking after the TLS handshake is complete.
+        @type acceptableProtocols: L{list} of L{bytes}
+        """
+        self._acceptableProtocols = acceptableProtocols
+
+
+    def acceptableProtocols(self):
+        """
+        Returns a list of protocols that can be spoken by the connection
+        factory in the form of ALPN tokens, as laid out in the IANA registry
+        for ALPN tokens.
+
+        @return: a list of ALPN tokens in order of preference.
+        @rtype: L{list} of L{bytes}
+        """
+        return self._acceptableProtocols
+
+
+
+@implementer(IProtocolNegotiationFactory)
+class ServerNegotiationFactory(ServerFactory):
+    """
+    A L{ServerFactory} that has a set of acceptable protocols for NPN/ALPN
+    negotiation.
+    """
+    def __init__(self, acceptableProtocols):
+        """
+        Create a L{ServerNegotiationFactory}.
+
+        @param acceptableProtocols: The protocols the server will accept
+            speaking after the TLS handshake is complete.
+        @type acceptableProtocols: L{list} of L{bytes}
+        """
+        self._acceptableProtocols = acceptableProtocols
+
+
+    def acceptableProtocols(self):
+        """
+        Returns a list of protocols that can be spoken by the connection
+        factory in the form of ALPN tokens, as laid out in the IANA registry
+        for ALPN tokens.
+
+        @return: a list of ALPN tokens in order of preference.
+        @rtype: L{list} of L{bytes}
+        """
+        return self._acceptableProtocols
+
+
+
+class IProtocolNegotiationFactoryTests(TestCase):
+    """
+    Tests for L{IProtocolNegotiationFactory} inside L{TLSMemoryBIOFactory}.
+
+    These tests expressly don't include the case where both server and client
+    advertise protocols but don't have any overlap. This is because the
+    behaviour here is platform-dependent and changes from version to version.
+    Prior to version 1.1.0 of OpenSSL, failing the ALPN negotiation does not
+    fail the handshake. At least in 1.0.2h, failing NPN *does* fail the
+    handshake, at least with the callback implemented by PyOpenSSL.
+
+    This is sufficiently painful to test that we simply don't. It's not
+    necessary to validate that our offering logic works anyway: all we need to
+    see is that it works in the successful case and that it degrades properly.
+    """
+    def handshakeProtocols(self, clientProtocols, serverProtocols):
+        """
+        Start handshake between TLS client and server.
+
+        @param clientProtocols: The protocols the client will accept speaking
+            after the TLS handshake is complete.
+        @type clientProtocols: L{list} of L{bytes}
+
+        @param serverProtocols: The protocols the server will accept speaking
+            after the TLS handshake is complete.
+        @type serverProtocols: L{list} of L{bytes}
+
+        @return: A L{tuple} of four different items: the client L{Protocol},
+            the server L{Protocol}, a L{Deferred} that fires when the client
+            first receives bytes (and so the TLS connection is complete), and a
+            L{Deferred} that fires when the server first receives bytes.
+        @rtype: A L{tuple} of (L{Protocol}, L{Protocol}, L{Deferred},
+            L{Deferred})
+        """
+        bytes = b'some bytes'
+
+        class NotifyingSender(Protocol):
+            def __init__(self, notifier):
+                self.notifier = notifier
+
+            def connectionMade(self):
+                self.transport.writeSequence(list(iterbytes(bytes)))
+
+            def dataReceived(self, bytes):
+                if self.notifier is not None:
+                    self.notifier.callback(self)
+                    self.notifier = None
+
+
+        clientDataReceived = Deferred()
+        clientFactory = ClientNegotiationFactory(clientProtocols)
+        clientFactory.protocol = lambda: NotifyingSender(
+            clientDataReceived
+        )
+
+        clientContextFactory, _ = (
+            HandshakeCallbackContextFactory.factoryAndDeferred())
+        wrapperFactory = TLSMemoryBIOFactory(
+            clientContextFactory, True, clientFactory)
+        sslClientProtocol = wrapperFactory.buildProtocol(None)
+
+        serverDataReceived = Deferred()
+        serverFactory = ServerNegotiationFactory(serverProtocols)
+        serverFactory.protocol = lambda: NotifyingSender(
+            serverDataReceived
+        )
+
+        serverContextFactory = ServerTLSContext()
+        wrapperFactory = TLSMemoryBIOFactory(
+            serverContextFactory, False, serverFactory)
+        sslServerProtocol = wrapperFactory.buildProtocol(None)
+
+        loopbackAsync(
+            sslServerProtocol, sslClientProtocol
+        )
+        return (sslClientProtocol, sslServerProtocol, clientDataReceived,
+                serverDataReceived)
+
+
+    def test_negotiationWithNoProtocols(self):
+        """
+        When factories support L{IProtocolNegotiationFactory} but don't
+        advertise support for any protocols, no protocols are negotiated.
+        """
+        client, server, clientDataReceived, serverDataReceived = (
+            self.handshakeProtocols([], [])
+        )
+
+        def checkNegotiatedProtocol(ignored):
+            self.assertEqual(client.negotiatedProtocol, None)
+            self.assertEqual(server.negotiatedProtocol, None)
+
+        clientDataReceived.addCallback(lambda ignored: serverDataReceived)
+        serverDataReceived.addCallback(checkNegotiatedProtocol)
+
+        return clientDataReceived
+
+
+    def test_negotiationWithProtocolOverlap(self):
+        """
+        When factories support L{IProtocolNegotiationFactory} and support
+        overlapping protocols, the first protocol is negotiated.
+        """
+        client, server, clientDataReceived, serverDataReceived = (
+            self.handshakeProtocols([b'h2', b'http/1.1'], [b'h2', b'http/1.1'])
+        )
+
+        def checkNegotiatedProtocol(ignored):
+            self.assertEqual(client.negotiatedProtocol, b'h2')
+            self.assertEqual(server.negotiatedProtocol, b'h2')
+
+        clientDataReceived.addCallback(lambda ignored: serverDataReceived)
+        serverDataReceived.addCallback(checkNegotiatedProtocol)
+
+        return clientDataReceived
+
+
+    def test_negotiationClientOnly(self):
+        """
+        When factories support L{IProtocolNegotiationFactory} and only the
+        client advertises, nothing is negotiated.
+        """
+        client, server, clientDataReceived, serverDataReceived = (
+            self.handshakeProtocols([b'h2', b'http/1.1'], [])
+        )
+
+        def checkNegotiatedProtocol(ignored):
+            self.assertEqual(client.negotiatedProtocol, None)
+            self.assertEqual(server.negotiatedProtocol, None)
+
+        clientDataReceived.addCallback(lambda ignored: serverDataReceived)
+        serverDataReceived.addCallback(checkNegotiatedProtocol)
+
+        return clientDataReceived
+
+
+    def test_negotiationServerOnly(self):
+        """
+        When factories support L{IProtocolNegotiationFactory} and only the
+        server advertises, nothing is negotiated.
+        """
+        client, server, clientDataReceived, serverDataReceived = (
+            self.handshakeProtocols([], [b'h2', b'http/1.1'])
+        )
+
+        def checkNegotiatedProtocol(ignored):
+            self.assertEqual(client.negotiatedProtocol, None)
+            self.assertEqual(server.negotiatedProtocol, None)
+
+        clientDataReceived.addCallback(lambda ignored: serverDataReceived)
+        serverDataReceived.addCallback(checkNegotiatedProtocol)
+
+        return clientDataReceived

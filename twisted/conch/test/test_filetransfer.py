@@ -9,7 +9,6 @@ Tests for L{twisted.conch.ssh.filetransfer}.
 import os
 import re
 import struct
-import sys
 
 from twisted.trial import unittest
 try:
@@ -95,13 +94,13 @@ class SFTPTestBase(unittest.TestCase):
         f = file(os.path.join(self.testDir, 'testfile1'),'w')
         f.write('a'*10+'b'*10)
         f.write(file('/dev/urandom').read(1024*64)) # random data
-        os.chmod(os.path.join(self.testDir, 'testfile1'), 0644)
+        os.chmod(os.path.join(self.testDir, 'testfile1'), 0o644)
         file(os.path.join(self.testDir, 'testRemoveFile'), 'w').write('a')
         file(os.path.join(self.testDir, 'testRenameFile'), 'w').write('a')
         file(os.path.join(self.testDir, '.testHiddenFile'), 'w').write('a')
 
 
-class TestOurServerOurClient(SFTPTestBase):
+class OurServerOurClientTests(SFTPTestBase):
 
     if not unix:
         skip = "can't run on non-posix computers"
@@ -477,7 +476,7 @@ class FakeConn:
         pass
 
 
-class TestFileTransferClose(unittest.TestCase):
+class FileTransferCloseTests(unittest.TestCase):
 
     if not unix:
         skip = "can't run on non-posix computers"
@@ -579,7 +578,7 @@ class TestFileTransferClose(unittest.TestCase):
 
 
 
-class TestConstants(unittest.TestCase):
+class ConstantsTests(unittest.TestCase):
     """
     Tests for the constants used by the SFTP protocol implementation.
 
@@ -684,7 +683,7 @@ class TestConstants(unittest.TestCase):
 
 
 
-class TestRawPacketData(unittest.TestCase):
+class RawPacketDataTests(unittest.TestCase):
     """
     Tests for L{filetransfer.FileTransferClient} which explicitly craft certain
     less common protocol messages to exercise their handling.
