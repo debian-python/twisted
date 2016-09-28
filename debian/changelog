@@ -1,3 +1,25 @@
+twisted (16.4.1-1) unstable; urgency=medium
+
+  * New upstream (bug fix) release.
+
+ -- Matthias Klose <doko@debian.org>  Wed, 28 Sep 2016 02:13:13 +0200
+
+twisted (16.4.0-2) unstable; urgency=medium
+
+  * Fix build on x86 targets.
+  * Build architecture dependent packages for Python3.
+
+ -- Matthias Klose <doko@debian.org>  Wed, 31 Aug 2016 09:38:30 +0200
+
+twisted (16.4.0-1) unstable; urgency=medium
+
+  * New upstream release.
+  * Drop fix-man-error.diff patch, since the issue has been fixed upstream.
+  * Replace setup3.py with setup.py in debian/rules (there's a single file
+    now)
+
+ -- Free Ekanayaka <freee@debian.org>  Tue, 30 Aug 2016 09:53:49 +0000
+
 twisted (16.3.0-1) unstable; urgency=medium
 
   * New upstream release.

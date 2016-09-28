@@ -30,8 +30,8 @@ build-python%:
 	touch $@
 
 build3-python%:
-	python$* setup3.py build
-#	python$*-dbg setup3.py build
+	python$* setup.py build
+	python$*-dbg setup.py build
 	touch $@
 
 build-doc:
@@ -105,25 +105,16 @@ install-python%: install-prereq
 
 install3-python%: install-prereq
 	: # python3-twisted $*
-	python$* setup3.py install \
+	python$* setup.py install \
 		--root=$(CURDIR)/debian/python3-twisted --install-layout=deb
 
 	find debian/python3-twisted -name '__pycache__' | xargs -r rm -rf
 
-ifeq (0,1)
 	: # python3-twisted-bin
-ifeq ($(DEB_HOST_ARCH_OS), linux)
 	dh_movefiles -ppython3-twisted-bin \
-	  --sourcedir=debian/python3-twisted-core \
-	    $(call py_libdir,$*)/twisted/python/sendmsg.cpython-$(subst .,,$*)m.so \
-	    $(call py_libdir,$*)/twisted/test/raiser.cpython-$(subst .,,$*)m.so
-else
-	dh_movefiles -ppython3-twisted-bin \
-	  --sourcedir=debian/python3-twisted-core \
-	    $(call py_libdir,$*)/twisted/python/sendmsg.cpython-$(subst .,,$*)m.so \
-	    $(call py_libdir,$*)/twisted/test/raiser.cpython-$(subst .,,$*)m.so
-endif
-endif
+	  --sourcedir=debian/python3-twisted \
+	    $(call py_libdir,$*)/twisted/test/raiser.cpython-$(subst .,,$*)m-$(DEB_HOST_MULTIARCH).so
+#	    $(call py_libdir,$*)/twisted/python/sendmsg.cpython-$(subst .,,$*)m-$(DEB_HOST_MULTIARCH).so
 
 	: # Replace all '#!' calls to python with /usr/bin/python3
 	: # and make them executable
@@ -138,13 +129,12 @@ endif
 	    echo "fixed interpreter: $$i"; \
 	  fi; \
 	done
-ifeq (0,1)
+
 	: # python-twisted-bin-dbg
-	python$*-dbg setup3.py install \
+	python$*-dbg setup.py install \
 		--root=$(CURDIR)/debian/python3-twisted-bin-dbg --no-compile --install-layout=deb
 	find debian/python3-twisted-bin-dbg ! -type d ! -name '*.so' | xargs rm -f
 	find debian/python3-twisted-bin-dbg -depth -empty -exec rmdir {} \;
-endif
 
 install-nover:
 	: # python man pages
