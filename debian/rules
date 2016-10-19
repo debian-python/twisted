@@ -45,7 +45,6 @@ clean:
 	rm -rf apidocs py3
 	rm -rf $(addprefix debian/,$(packages)) debian/files debian/substvars
 	rm -rf _trial_temp test.log
-	rm -rf Twisted.egg-info
 	rm -f twisted/plugins/dropin.cache
 	find -name '__pycache__' -type d | xargs -r rm -rf
 	find . -name "*.pyc" |xargs -r rm
