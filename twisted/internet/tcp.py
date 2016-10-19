@@ -51,10 +51,7 @@ if platformType == 'win32':
     from errno import WSAEWOULDBLOCK as EWOULDBLOCK
     from errno import WSAEINPROGRESS as EINPROGRESS
     from errno import WSAEALREADY as EALREADY
-    from errno import WSAECONNRESET as ECONNRESET
     from errno import WSAEISCONN as EISCONN
-    from errno import WSAENOTCONN as ENOTCONN
-    from errno import WSAEINTR as EINTR
     from errno import WSAENOBUFS as ENOBUFS
     from errno import WSAEMFILE as EMFILE
     # No such thing as WSAENFILE, either.
@@ -71,10 +68,7 @@ else:
     from errno import EWOULDBLOCK
     from errno import EINPROGRESS
     from errno import EALREADY
-    from errno import ECONNRESET
     from errno import EISCONN
-    from errno import ENOTCONN
-    from errno import EINTR
     from errno import ENOBUFS
     from errno import EMFILE
     from errno import ENFILE
@@ -94,6 +88,7 @@ from twisted.python import log, failure, reflect
 from twisted.python.util import untilConcludes
 from twisted.internet.error import CannotListenError
 from twisted.internet import abstract, main, interfaces, error
+from twisted.internet.protocol import Protocol
 
 # Not all platforms have, or support, this flag.
 _AI_NUMERICSERV = getattr(socket, "AI_NUMERICSERV", 0)
@@ -110,7 +105,7 @@ else:
 class _SocketCloser(object):
     """
     @ivar _shouldShutdown: Set to C{True} if C{shutdown} should be called
-        before callling C{close} on the underlying socket.
+        before calling C{close} on the underlying socket.
     @type _shouldShutdown: C{bool}
     """
     _shouldShutdown = True
@@ -441,7 +436,7 @@ class _BaseBaseClient(object):
 
     def failIfNotConnected(self, err):
         """
-        Generic method called when the attemps to connect failed. It basically
+        Generic method called when the attempts to connect failed. It basically
         cleans everything it can: call connectionFailed, stop read and write,
         delete socket related members.
         """
@@ -607,8 +602,18 @@ class BaseClient(_BaseBaseClient, _TLSClientMixin, Connection):
         self.connected = 1
         logPrefix = self._getLogPrefix(self.protocol)
         self.logstr = "%s,client" % logPrefix
-        self.startReading()
-        self.protocol.makeConnection(self)
+        if self.protocol is None:
+            # Factory.buildProtocol is allowed to return None.  In that case,
+            # make up a protocol to satisfy the rest of the implementation;
+            # connectionLost is going to be called on something, for example.
+            # This is easier than adding special case support for a None
+            # protocol throughout the rest of the transport implementation.
+            self.protocol = Protocol()
+            # But dispose of the connection quickly.
+            self.loseConnection()
+        else:
+            self.startReading()
+            self.protocol.makeConnection(self)
 
 
 
@@ -1178,5 +1183,3 @@ class Connector(base.BaseConnector):
         @see: L{twisted.internet.interfaces.IConnector.getDestination}.
         """
         return self._addressType('TCP', self.host, self.port)
-
-

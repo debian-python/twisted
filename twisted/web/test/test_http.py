@@ -5,20 +5,23 @@
 Test HTTP support.
 """
 
+from __future__ import absolute_import, division
+
 import random, cgi, base64
 
 try:
-    from urlparse import (
-        ParseResult as ParseResultBytes, urlparse, urlunsplit, clear_cache)
+    from urlparse import urlparse, urlunsplit, clear_cache
 except ImportError:
-    from urllib.parse import (
-        ParseResultBytes, urlparse, urlunsplit, clear_cache)
+    from urllib.parse import urlparse, urlunsplit, clear_cache
 
-from twisted.python.compat import _PY3, iterbytes, networkString, unicode, intToBytes
+from zope.interface import provider
+
+from twisted.python.compat import (_PY3, iterbytes, networkString, unicode,
+                                   intToBytes, NativeStringIO)
 from twisted.python.failure import Failure
 from twisted.trial import unittest
 from twisted.trial.unittest import TestCase
-from twisted.web import http, http_headers
+from twisted.web import http, http_headers, iweb
 from twisted.web.http import PotentialDataLoss, _DataLoss
 from twisted.web.http import _IdentityTransferDecoder
 from twisted.internet.task import Clock
@@ -30,7 +33,7 @@ from twisted.web.test.requesthelper import DummyChannel
 
 
 
-class DateTimeTest(unittest.TestCase):
+class DateTimeTests(unittest.TestCase):
     """Test date parsing functions."""
 
     def testRoundtrip(self):
@@ -39,6 +42,7 @@ class DateTimeTest(unittest.TestCase):
             timestr = http.datetimeToString(time)
             time2 = http.stringToDatetime(timestr)
             self.assertEqual(time, time2)
+
 
 
 class DummyHTTPHandler(http.Request):
@@ -57,6 +61,32 @@ class DummyHTTPHandler(http.Request):
         self.setHeader(b"Content-Length", intToBytes(len(request)))
         self.write(request)
         self.finish()
+
+
+
+@provider(iweb.INonQueuedRequestFactory)
+class DummyNewHTTPHandler(DummyHTTPHandler):
+    """
+    This is exactly like the DummyHTTPHandler but it takes only one argument
+    in its constructor, with no default arguments. This exists to test an
+    alternative code path in L{HTTPChannel}.
+    """
+    def __init__(self, channel):
+        DummyHTTPHandler.__init__(self, channel)
+
+
+
+class DelayedHTTPHandler(DummyHTTPHandler):
+    """
+    Like L{DummyHTTPHandler}, but doesn't respond immediately.
+    """
+    def process(self):
+        pass
+
+
+    def delayedProcess(self):
+        DummyHTTPHandler.process(self)
+
 
 
 class LoopbackHTTPClient(http.HTTPClient):
@@ -105,7 +135,7 @@ class ResponseTestMixin(object):
 
 
 
-class HTTP1_0TestCase(unittest.TestCase, ResponseTestMixin):
+class HTTP1_0Tests(unittest.TestCase, ResponseTestMixin):
     requests = (
         b"GET / HTTP/1.0\r\n"
         b"\r\n"
@@ -158,8 +188,51 @@ class HTTP1_0TestCase(unittest.TestCase, ResponseTestMixin):
         self.assertEqual(len(protocol.requests), 1)
 
 
+    def test_noPipeliningApi(self):
+        """
+        Test that a L{http.Request} subclass with no queued kwarg works as
+        expected.
+        """
+        b = StringTransport()
+        a = http.HTTPChannel()
+        a.requestFactory = DummyNewHTTPHandler
+        a.makeConnection(b)
+        # one byte at a time, to stress it.
+        for byte in iterbytes(self.requests):
+            a.dataReceived(byte)
+        a.connectionLost(IOError("all done"))
+        value = b.value()
+        self.assertResponseEquals(value, self.expected_response)
 
-class HTTP1_1TestCase(HTTP1_0TestCase):
+
+    def test_noPipelining(self):
+        """
+        Test that pipelined requests get buffered, not processed in parallel.
+        """
+        b = StringTransport()
+        a = http.HTTPChannel()
+        a.requestFactory = DelayedHTTPHandler
+        a.makeConnection(b)
+        # one byte at a time, to stress it.
+        for byte in iterbytes(self.requests):
+            a.dataReceived(byte)
+        value = b.value()
+
+        # So far only one request should have been dispatched.
+        self.assertEqual(value, b'')
+        self.assertEqual(1, len(a.requests))
+
+        # Now, process each request one at a time.
+        while a.requests:
+            self.assertEqual(1, len(a.requests))
+            a.requests[0].delayedProcess()
+
+        value = b.value()
+        self.assertResponseEquals(value, self.expected_response)
+
+
+
+class HTTP1_1Tests(HTTP1_0Tests):
 
     requests = (
         b"GET / HTTP/1.1\r\n"
@@ -202,7 +275,7 @@ class HTTP1_1TestCase(HTTP1_0TestCase):
 
 
 
-class HTTP1_1_close_TestCase(HTTP1_0TestCase):
+class HTTP1_1_close_Tests(HTTP1_0Tests):
 
     requests = (
         b"GET / HTTP/1.1\r\n"
@@ -223,7 +296,7 @@ class HTTP1_1_close_TestCase(HTTP1_0TestCase):
 
 
 
-class HTTP0_9TestCase(HTTP1_0TestCase):
+class HTTP0_9Tests(HTTP1_0Tests):
 
     requests = (
         b"GET /\r\n")
@@ -235,7 +308,268 @@ class HTTP0_9TestCase(HTTP1_0TestCase):
         self.assertEqual(response, expectedResponse)
 
 
-class HTTPLoopbackTestCase(unittest.TestCase):
+    def test_noPipelining(self):
+        raise unittest.SkipTest("HTTP/0.9 not supported")
+
+
+
+class PipeliningBodyTests(unittest.TestCase, ResponseTestMixin):
+    """
+    Tests that multiple pipelined requests with bodies are correctly buffered.
+    """
+
+    requests = (
+        b"POST / HTTP/1.1\r\n"
+        b"Content-Length: 10\r\n"
+        b"\r\n"
+        b"0123456789POST / HTTP/1.1\r\n"
+        b"Content-Length: 10\r\n"
+        b"\r\n"
+        b"0123456789"
+    )
+
+    expectedResponses = [
+        (b"HTTP/1.1 200 OK",
+         b"Request: /",
+         b"Command: POST",
+         b"Version: HTTP/1.1",
+         b"Content-Length: 21",
+         b"'''\n10\n0123456789'''\n"),
+        (b"HTTP/1.1 200 OK",
+         b"Request: /",
+         b"Command: POST",
+         b"Version: HTTP/1.1",
+         b"Content-Length: 21",
+         b"'''\n10\n0123456789'''\n")]
+
+    def test_noPipelining(self):
+        """
+        Test that pipelined requests get buffered, not processed in parallel.
+        """
+        b = StringTransport()
+        a = http.HTTPChannel()
+        a.requestFactory = DelayedHTTPHandler
+        a.makeConnection(b)
+        # one byte at a time, to stress it.
+        for byte in iterbytes(self.requests):
+            a.dataReceived(byte)
+        value = b.value()
+
+        # So far only one request should have been dispatched.
+        self.assertEqual(value, b'')
+        self.assertEqual(1, len(a.requests))
+
+        # Now, process each request one at a time.
+        while a.requests:
+            self.assertEqual(1, len(a.requests))
+            a.requests[0].delayedProcess()
+
+        value = b.value()
+        self.assertResponseEquals(value, self.expectedResponses)
+
+
+
+class ShutdownTests(unittest.TestCase):
+    """
+    Tests that connections can be shut down by L{http.Request} objects.
+    """
+    class ShutdownHTTPHandler(http.Request):
+        """
+        A HTTP handler that just immediately calls loseConnection.
+        """
+        def process(self):
+            self.loseConnection()
+
+
+    request = (
+        b"POST / HTTP/1.1\r\n"
+        b"Content-Length: 10\r\n"
+        b"\r\n"
+        b"0123456789"
+    )
+
+
+    def test_losingConnection(self):
+        """
+        Calling L{http.Request.loseConnection} causes the transport to be
+        disconnected.
+        """
+        b = StringTransport()
+        a = http.HTTPChannel()
+        a.requestFactory = self.ShutdownHTTPHandler
+        a.makeConnection(b)
+        a.dataReceived(self.request)
+
+        # The transport should have been shut down.
+        self.assertTrue(b.disconnecting)
+
+        # No response should have been written.
+        value = b.value()
+        self.assertEqual(value, b'')
+
+
+
+class SecurityTests(unittest.TestCase):
+    """
+    Tests that L{http.Request.isSecure} correctly takes the transport into
+    account.
+    """
+    def test_isSecure(self):
+        """
+        Calling L{http.Request.isSecure} when the channel is backed with a
+        secure transport will return L{True}.
+        """
+        b = DummyChannel.SSL()
+        a = http.HTTPChannel()
+        a.makeConnection(b)
+        req = http.Request(a)
+        self.assertTrue(req.isSecure())
+
+
+    def test_notSecure(self):
+        """
+        Calling L{http.Request.isSecure} when the channel is not backed with a
+        secure transport will return L{False}.
+        """
+        b = DummyChannel.TCP()
+        a = http.HTTPChannel()
+        a.makeConnection(b)
+        req = http.Request(a)
+        self.assertFalse(req.isSecure())
+
+
+    def test_notSecureAfterFinish(self):
+        """
+        After a request is finished, calling L{http.Request.isSecure} will
+        always return L{False}.
+        """
+        b = DummyChannel.SSL()
+        a = http.HTTPChannel()
+        a.makeConnection(b)
+        req = http.Request(a)
+        a.requests.append(req)
+
+        req.setResponseCode(200)
+        req.finish()
+        self.assertFalse(req.isSecure())
+
+
+
+class GenericHTTPChannelTests(unittest.TestCase):
+    """
+    Tests for L{http._genericHTTPChannelProtocol}, a L{HTTPChannel}-alike which
+    can handle different HTTP protocol channels.
+    """
+    requests = (
+        b"GET / HTTP/1.1\r\n"
+        b"Accept: text/html\r\n"
+        b"Connection: close\r\n"
+        b"\r\n"
+        b"GET / HTTP/1.0\r\n"
+        b"\r\n")
+
+
+    def _negotiatedProtocolForTransportInstance(self, t):
+        """
+        Run a request using the specific instance of a transport. Returns the
+        negotiated protocol string.
+        """
+        a = http._genericHTTPChannelProtocolFactory(b'')
+        a.requestFactory = DummyHTTPHandler
+        a.makeConnection(t)
+        # one byte at a time, to stress it.
+        for byte in iterbytes(self.requests):
+            a.dataReceived(byte)
+        a.connectionLost(IOError("all done"))
+        return a._negotiatedProtocol
+
+
+    def test_protocolUnspecified(self):
+        """
+        If the transport has no support for protocol negotiation (no
+        negotiatedProtocol attribute), HTTP/1.1 is assumed.
+        """
+        b = StringTransport()
+        negotiatedProtocol = self._negotiatedProtocolForTransportInstance(b)
+        self.assertEqual(negotiatedProtocol, b'http/1.1')
+
+
+    def test_protocolNone(self):
+        """
+        If the transport has no support for protocol negotiation (returns None
+        for negotiatedProtocol), HTTP/1.1 is assumed.
+        """
+        b = StringTransport()
+        b.negotiatedProtocol = None
+        negotiatedProtocol = self._negotiatedProtocolForTransportInstance(b)
+        self.assertEqual(negotiatedProtocol, b'http/1.1')
+
+
+    def test_http11(self):
+        """
+        If the transport reports that HTTP/1.1 is negotiated, that's what's
+        negotiated.
+        """
+        b = StringTransport()
+        b.negotiatedProtocol = b'http/1.1'
+        negotiatedProtocol = self._negotiatedProtocolForTransportInstance(b)
+        self.assertEqual(negotiatedProtocol, b'http/1.1')
+
+
+    def test_http2_present(self):
+        """
+        If the transport reports that HTTP/2 is negotiated and HTTP/2 is
+        present, that's what's negotiated.
+        """
+        b = StringTransport()
+        b.negotiatedProtocol = b'h2'
+        negotiatedProtocol = self._negotiatedProtocolForTransportInstance(b)
+        self.assertEqual(negotiatedProtocol, b'h2')
+    if not http.H2_ENABLED:
+        test_http2_present.skip = "HTTP/2 support not present"
+
+
+    def test_http2_absent(self):
+        """
+        If the transport reports that HTTP/2 is negotiated and HTTP/2 is not
+        present, an error is encountered.
+        """
+        b = StringTransport()
+        b.negotiatedProtocol = b'h2'
+        self.assertRaises(
+            ValueError,
+            self._negotiatedProtocolForTransportInstance,
+            b,
+        )
+    if http.H2_ENABLED:
+        test_http2_absent.skip = "HTTP/2 support present"
+
+
+    def test_unknownProtocol(self):
+        """
+        If the transport reports that a protocol other than HTTP/1.1 or HTTP/2
+        is negotiated, an error occurs.
+        """
+        b = StringTransport()
+        b.negotiatedProtocol = b'smtp'
+        self.assertRaises(
+            AssertionError,
+            self._negotiatedProtocolForTransportInstance,
+            b,
+        )
+
+
+    def test_factory(self):
+        """
+        The C{factory} attribute is taken from the inner channel.
+        """
+        a = http._genericHTTPChannelProtocolFactory(b'')
+        a._channel.factory = b"Foo"
+        self.assertEqual(a.factory, b"Foo")
+
+
+
+class HTTPLoopbackTests(unittest.TestCase):
 
     expectedHeaders = {b'request': b'/foo/bar',
                        b'command': b'GET',
@@ -298,7 +632,7 @@ def _prequest(**headers):
 
 
 
-class PersistenceTestCase(unittest.TestCase):
+class PersistenceTests(unittest.TestCase):
     """
     Tests for persistent HTTP connections.
     """
@@ -626,7 +960,7 @@ class ChunkedTransferEncodingTests(unittest.TestCase):
 
 
 
-class ChunkingTestCase(unittest.TestCase):
+class ChunkingTests(unittest.TestCase, ResponseTestMixin):
 
     strings = [b"abcv", b"", b"fdfsd423", b"Ffasfas\r\n",
                b"523523\n\rfsdf", b"4234"]
@@ -650,9 +984,32 @@ class ChunkingTestCase(unittest.TestCase):
                 pass
         self.assertEqual(result, self.strings)
 
+    def test_chunkedResponses(self):
+        """
+        Test that the L{HTTPChannel} correctly chunks responses when needed.
+        """
+        channel = http.HTTPChannel()
+        req = http.Request(channel, False)
+        trans = StringTransport()
+
+        channel.transport = trans
+
+        req.setResponseCode(200)
+        req.clientproto = b"HTTP/1.1"
+        req.responseHeaders.setRawHeaders(b"test", [b"lemur"])
+        req.write(b'Hello')
+        req.write(b'World!')
+
+        self.assertResponseEquals(
+            trans.value(),
+            [(b"HTTP/1.1 200 OK",
+              b"Test: lemur",
+              b"Transfer-Encoding: chunked",
+              b"5\r\nHello\r\n6\r\nWorld!\r\n")])
 
 
-class ParsingTestCase(unittest.TestCase):
+
+class ParsingTests(unittest.TestCase):
     """
     Tests for protocol parsing in L{HTTPChannel}.
     """
@@ -660,23 +1017,68 @@ class ParsingTestCase(unittest.TestCase):
         self.didRequest = False
 
 
-    def runRequest(self, httpRequest, requestClass, success=1):
+    def runRequest(self, httpRequest, requestFactory=None, success=True,
+                   channel=None):
+        """
+        Execute a web request based on plain text content.
+
+        @param httpRequest: Content for the request which is processed.
+        @type httpRequest: C{bytes}
+
+        @param requestFactory: 2-argument callable returning a Request.
+        @type requestFactory: C{callable}
+
+        @param success: Value to compare against I{self.didRequest}.
+        @type success: C{bool}
+
+        @param channel: Channel instance over which the request is processed.
+        @type channel: L{HTTPChannel}
+
+        @return: Returns the channel used for processing the request.
+        @rtype: L{HTTPChannel}
+        """
+        if not channel:
+            channel = http.HTTPChannel()
+
+        if requestFactory:
+            channel.requestFactory = requestFactory
+
         httpRequest = httpRequest.replace(b"\n", b"\r\n")
-        b = StringTransport()
-        a = http.HTTPChannel()
-        a.requestFactory = requestClass
-        a.makeConnection(b)
+        transport = StringTransport()
+
+        channel.makeConnection(transport)
         # one byte at a time, to stress it.
         for byte in iterbytes(httpRequest):
-            if a.transport.disconnecting:
+            if channel.transport.disconnecting:
                 break
-            a.dataReceived(byte)
-        a.connectionLost(IOError("all done"))
+            channel.dataReceived(byte)
+        channel.connectionLost(IOError("all done"))
+
         if success:
             self.assertTrue(self.didRequest)
         else:
             self.assertFalse(self.didRequest)
-        return a
+        return channel
+
+
+    def test_invalidNonAsciiMethod(self):
+        """
+        When client sends invalid HTTP method containing
+        non-ascii characters HTTP 400 'Bad Request' status will be returned.
+        """
+        processed = []
+        class MyRequest(http.Request):
+            def process(self):
+                processed.append(self)
+                self.finish()
+
+        badRequestLine = b"GE\xc2\xa9 / HTTP/1.1\r\n\r\n"
+        channel = self.runRequest(badRequestLine, MyRequest, 0)
+        self.assertEqual(
+            channel.transport.value(),
+            b"HTTP/1.1 400 Bad Request\r\n\r\n")
+        self.assertTrue(channel.transport.disconnecting)
+        self.assertEqual(processed, [])
 
 
     def test_basicAuth(self):
@@ -748,18 +1150,45 @@ class ParsingTestCase(unittest.TestCase):
             b"HTTP/1.1 400 Bad Request\r\n\r\n")
 
 
-    def test_invalidHeaders(self):
+    def test_invalidContentLengthHeader(self):
         """
         If a Content-Length header with a non-integer value is received, a 400
         (Bad Request) response is sent to the client and the connection is
         closed.
         """
+        processed = []
+        class MyRequest(http.Request):
+            def process(self):
+                processed.append(self)
+                self.finish()
+
         requestLines = [b"GET / HTTP/1.0", b"Content-Length: x", b"", b""]
-        channel = self.runRequest(b"\n".join(requestLines), http.Request, 0)
+        channel = self.runRequest(b"\n".join(requestLines), MyRequest, 0)
         self.assertEqual(
             channel.transport.value(),
             b"HTTP/1.1 400 Bad Request\r\n\r\n")
         self.assertTrue(channel.transport.disconnecting)
+        self.assertEqual(processed, [])
+
+
+    def test_invalidHeaderNoColon(self):
+        """
+        If a header without colon is received a 400 (Bad Request) response
+        is sent to the client and the connection is closed.
+        """
+        processed = []
+        class MyRequest(http.Request):
+            def process(self):
+                processed.append(self)
+                self.finish()
+
+        requestLines = [b"GET / HTTP/1.0", b"HeaderName ", b"", b""]
+        channel = self.runRequest(b"\n".join(requestLines), MyRequest, 0)
+        self.assertEqual(
+            channel.transport.value(),
+            b"HTTP/1.1 400 Bad Request\r\n\r\n")
+        self.assertTrue(channel.transport.disconnecting)
+        self.assertEqual(processed, [])
 
 
     def test_headerLimitPerRequest(self):
@@ -801,6 +1230,104 @@ class ParsingTestCase(unittest.TestCase):
             b'\r\n'
             b'0\r\n'
             b'\r\n')
+
+
+    def test_headersTooBigInitialCommand(self):
+        """
+        Enforces a limit of C{HTTPChannel.totalHeadersSize}
+        on the size of headers received per request starting from initial
+        command line.
+        """
+        processed = []
+        class MyRequest(http.Request):
+            def process(self):
+                processed.append(self)
+                self.finish()
+
+        channel = http.HTTPChannel()
+        channel.totalHeadersSize = 10
+        httpRequest = b'GET /path/longer/than/10 HTTP/1.1\n'
+
+        channel = self.runRequest(
+            httpRequest=httpRequest,
+            requestFactory=MyRequest,
+            channel=channel,
+            success=False
+        )
+
+        self.assertEqual(processed, [])
+        self.assertEqual(
+            channel.transport.value(),
+            b"HTTP/1.1 400 Bad Request\r\n\r\n")
+
+
+    def test_headersTooBigOtherHeaders(self):
+        """
+        Enforces a limit of C{HTTPChannel.totalHeadersSize}
+        on the size of headers received per request counting first line
+        and total headers.
+        """
+        processed = []
+        class MyRequest(http.Request):
+            def process(self):
+                processed.append(self)
+                self.finish()
+
+        channel = http.HTTPChannel()
+        channel.totalHeadersSize = 40
+        httpRequest = (
+            b'GET /less/than/40 HTTP/1.1\n'
+            b'Some-Header: less-than-40\n'
+            )
+
+        channel = self.runRequest(
+            httpRequest=httpRequest,
+            requestFactory=MyRequest,
+            channel=channel, success=False
+        )
+
+        self.assertEqual(processed, [])
+        self.assertEqual(
+            channel.transport.value(),
+            b"HTTP/1.1 400 Bad Request\r\n\r\n")
+
+
+    def test_headersTooBigPerRequest(self):
+        """
+        Enforces total size of headers per individual request and counter
+        is reset at the end of each request.
+        """
+        class SimpleRequest(http.Request):
+            def process(self):
+                self.finish()
+        channel = http.HTTPChannel()
+        channel.totalHeadersSize = 60
+        channel.requestFactory = SimpleRequest
+        httpRequest = (
+            b'GET / HTTP/1.1\n'
+            b'Some-Header: total-less-than-60\n'
+            b'\n'
+            b'GET / HTTP/1.1\n'
+            b'Some-Header: less-than-60\n'
+            b'\n'
+            )
+
+        channel = self.runRequest(
+            httpRequest=httpRequest, channel=channel, success=False)
+
+        self.assertEqual(
+            channel.transport.value(),
+            b'HTTP/1.1 200 OK\r\n'
+            b'Transfer-Encoding: chunked\r\n'
+            b'\r\n'
+            b'0\r\n'
+            b'\r\n'
+            b'HTTP/1.1 200 OK\r\n'
+            b'Transfer-Encoding: chunked\r\n'
+            b'\r\n'
+            b'0\r\n'
+            b'\r\n'
+            )
 
 
     def testCookies(self):
@@ -919,7 +1446,11 @@ Content-Type: application/x-www-form-urlencoded
         self.assertEqual(content, [networkString(query)])
 
 
-    def testMissingContentDisposition(self):
+    def test_missingContentDisposition(self):
+        """
+        If the C{Content-Disposition} header is missing, the request is denied
+        as a bad request.
+        """
         req = b'''\
 POST / HTTP/1.0
 Content-Type: multipart/form-data; boundary=AaB03x
@@ -932,11 +1463,71 @@ Content-Transfer-Encoding: quoted-printable
 abasdfg
 --AaB03x--
 '''
-        self.runRequest(req, http.Request, success=False)
+        channel = self.runRequest(req, http.Request, success=False)
+        self.assertEqual(
+            channel.transport.value(),
+            b"HTTP/1.1 400 Bad Request\r\n\r\n")
+
     if _PY3:
-        testMissingContentDisposition.skip = (
-            "Cannot parse multipart/form-data on Python 3.  "
-            "See http://bugs.python.org/issue12411 and #5511.")
+        test_missingContentDisposition.skip = (
+            "cgi.parse_multipart is much more error-tolerant on Python 3.")
+
+
+    def test_multipartProcessingFailure(self):
+        """
+        When the multipart processing fails the client gets a 400 Bad Request.
+        """
+        # The parsing failure is simulated by having a Content-Length that
+        # doesn't fit in a ssize_t.
+        req = b'''\
+POST / HTTP/1.0
+Content-Type: multipart/form-data; boundary=AaB03x
+Content-Length: 103
+
+--AaB03x
+Content-Type: text/plain
+Content-Length: 999999999999999999999999999999999999999999999999999999999999999
+Content-Transfer-Encoding: quoted-printable
+
+abasdfg
+--AaB03x--
+'''
+        channel = self.runRequest(req, http.Request, success=False)
+        self.assertEqual(
+            channel.transport.value(),
+            b"HTTP/1.1 400 Bad Request\r\n\r\n")
+
+
+    def test_multipartFormData(self):
+        """
+        If the request has a Content-Type of C{multipart/form-data}, and the
+        form data is parseable, the form arguments will be added to the
+        request's args.
+        """
+        processed = []
+        class MyRequest(http.Request):
+            def process(self):
+                processed.append(self)
+                self.write(b"done")
+                self.finish()
+        req = b'''\
+POST / HTTP/1.0
+Content-Type: multipart/form-data; boundary=AaB03x
+Content-Length: 149
+
+--AaB03x
+Content-Type: text/plain
+Content-Disposition: form-data; name="text"
+Content-Transfer-Encoding: quoted-printable
+
+abasdfg
+--AaB03x--
+'''
+        channel = self.runRequest(req, MyRequest, success=False)
+        self.assertEqual(channel.transport.value(),
+                         b"HTTP/1.0 200 OK\r\n\r\ndone")
+        self.assertEqual(len(processed), 1)
+        self.assertEqual(processed[0].args, {b"text": [b"abasdfg"]})
 
 
     def test_chunkedEncoding(self):
@@ -1020,7 +1611,7 @@ Hello,
 
 
 
-class QueryArgumentsTestCase(unittest.TestCase):
+class QueryArgumentsTests(unittest.TestCase):
     def testParseqs(self):
         self.assertEqual(
             cgi.parse_qs(b"a=b&d=c;+=f"),
@@ -1124,7 +1715,7 @@ class ClientDriver(http.HTTPClient):
         self.status = status
         self.message = message
 
-class ClientStatusParsing(unittest.TestCase):
+class ClientStatusParsingTests(unittest.TestCase):
     def testBaseline(self):
         c = ClientDriver()
         c.lineReceived(b'HTTP/1.0 201 foo')
@@ -1169,22 +1760,6 @@ class RequestTests(unittest.TestCase, ResponseTestMixin):
             [(b"Foo", [b"bar"])])
         setattr(req, newName, http_headers.Headers())
         self.assertEqual(getattr(req, oldName), {})
-
-
-    def test_received_headers(self):
-        """
-        L{Request.received_headers} is a backwards compatible API which
-        accesses and allows mutation of the state at L{Request.requestHeaders}.
-        """
-        self._compatHeadersTest('received_headers', 'requestHeaders')
-
-
-    def test_headers(self):
-        """
-        L{Request.headers} is a backwards compatible API which accesses and
-        allows mutation of the state at L{Request.responseHeaders}.
-        """
-        self._compatHeadersTest('headers', 'responseHeaders')
 
 
     def test_getHeader(self):
@@ -1266,11 +1841,22 @@ class RequestTests(unittest.TestCase, ResponseTestMixin):
         """
         channel = DummyChannel()
         req = http.Request(channel, False)
-        req.setResponseCode(202, "happily accepted")
+        req.setResponseCode(202, b"happily accepted")
         req.write(b'')
         self.assertEqual(
             channel.transport.written.getvalue().splitlines()[0],
             b'(no clientproto yet) 202 happily accepted')
+
+
+    def test_setResponseCodeAndMessageNotBytes(self):
+        """
+        L{http.Request.setResponseCode} accepts C{bytes} for the message
+        parameter and raises L{TypeError} if passed anything else.
+        """
+        channel = DummyChannel()
+        req = http.Request(channel, False)
+        self.assertRaises(TypeError, req.setResponseCode,
+                          202, u"not happily accepted")
 
 
     def test_setResponseCodeAcceptsIntegers(self):
@@ -1352,15 +1938,111 @@ class RequestTests(unittest.TestCase, ResponseTestMixin):
         self.assertEqual(req.responseHeaders.getRawHeaders(b"test"), [b"lemur"])
 
 
+    def _checkCookie(self, expectedCookieValue, *args, **kwargs):
+        """
+        Call L{http.Request.setCookie} with C{*args} and C{**kwargs}, and check
+        that the cookie value is equal to C{expectedCookieValue}.
+        """
+        channel = DummyChannel()
+        req = http.Request(channel, False)
+        req.addCookie(*args, **kwargs)
+        self.assertEqual(req.cookies[0], expectedCookieValue)
+
+        # Write nothing to make it produce the headers
+        req.write(b"")
+        writtenLines = channel.transport.written.getvalue().split(b"\r\n")
+
+        # There should be one Set-Cookie header
+        setCookieLines = [x for x in writtenLines
+                          if x.startswith(b"Set-Cookie")]
+        self.assertEqual(len(setCookieLines), 1)
+        self.assertEqual(setCookieLines[0],
+                         b"Set-Cookie: " + expectedCookieValue)
+
+
+    def test_addCookieWithMinimumArgumentsUnicode(self):
+        """
+        L{http.Request.setCookie} adds a new cookie to be sent with the
+        response, and can be called with just a key and a value. L{unicode}
+        arguments are encoded using UTF-8.
+        """
+        expectedCookieValue = b"foo=bar"
+
+        self._checkCookie(expectedCookieValue, u"foo", u"bar")
+
+
+    def test_addCookieWithAllArgumentsUnicode(self):
+        """
+        L{http.Request.setCookie} adds a new cookie to be sent with the
+        response. L{unicode} arguments are encoded using UTF-8.
+        """
+        expectedCookieValue = (
+            b"foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT; "
+            b"Domain=.example.com; Path=/; Max-Age=31536000; "
+            b"Comment=test; Secure; HttpOnly")
+
+        self._checkCookie(expectedCookieValue,
+            u"foo", u"bar", expires=u"Fri, 31 Dec 9999 23:59:59 GMT",
+            domain=u".example.com", path=u"/", max_age=u"31536000",
+            comment=u"test", secure=True, httpOnly=True)
+
+
+    def test_addCookieWithMinimumArgumentsBytes(self):
+        """
+        L{http.Request.setCookie} adds a new cookie to be sent with the
+        response, and can be called with just a key and a value. L{bytes}
+        arguments are not decoded.
+        """
+        expectedCookieValue = b"foo=bar"
+
+        self._checkCookie(expectedCookieValue, b"foo", b"bar")
+
+
+    def test_addCookieWithAllArgumentsBytes(self):
+        """
+        L{http.Request.setCookie} adds a new cookie to be sent with the
+        response. L{bytes} arguments are not decoded.
+        """
+        expectedCookieValue = (
+            b"foo=bar; Expires=Fri, 31 Dec 9999 23:59:59 GMT; "
+            b"Domain=.example.com; Path=/; Max-Age=31536000; "
+            b"Comment=test; Secure; HttpOnly")
+
+        self._checkCookie(expectedCookieValue,
+            b"foo", b"bar", expires=b"Fri, 31 Dec 9999 23:59:59 GMT",
+            domain=b".example.com", path=b"/", max_age=b"31536000",
+            comment=b"test", secure=True, httpOnly=True)
+
+
+    def test_addCookieNonStringArgument(self):
+        """
+        L{http.Request.setCookie} will raise a L{DeprecationWarning} if
+        non-string (not L{bytes} or L{unicode}) arguments are given, and will
+        call C{str()} on it to preserve past behaviour.
+        """
+        expectedCookieValue = b"foo=10"
+
+        self._checkCookie(expectedCookieValue, b"foo", 10)
+
+        warnings = self.flushWarnings([self._checkCookie])
+        self.assertEqual(1, len(warnings))
+        self.assertEqual(warnings[0]['category'], DeprecationWarning)
+        self.assertEqual(
+            warnings[0]['message'],
+            "Passing non-bytes or non-unicode cookie arguments is "
+            "deprecated since Twisted 16.1.")
+
+
     def test_firstWrite(self):
         """
         For an HTTP 1.0 request, L{http.Request.write} sends an HTTP 1.0
         Response-Line and whatever response headers are set.
         """
-        req = http.Request(DummyChannel(), False)
+        channel = DummyChannel()
+        req = http.Request(channel, False)
         trans = StringTransport()
 
-        req.transport = trans
+        channel.transport = trans
 
         req.setResponseCode(200)
         req.clientproto = b"HTTP/1.0"
@@ -1379,10 +2061,11 @@ class RequestTests(unittest.TestCase, ResponseTestMixin):
         L{http.Request.write} casts non-bytes header value to bytes
         transparently.
         """
-        req = http.Request(DummyChannel(), False)
+        channel = DummyChannel()
+        req = http.Request(channel, False)
         trans = StringTransport()
 
-        req.transport = trans
+        channel.transport = trans
 
         req.setResponseCode(200)
         req.clientproto = b"HTTP/1.0"
@@ -1411,10 +2094,11 @@ class RequestTests(unittest.TestCase, ResponseTestMixin):
         Response-Line, whatever response headers are set, and uses chunked
         encoding for the response body.
         """
-        req = http.Request(DummyChannel(), False)
+        channel = DummyChannel()
+        req = http.Request(channel, False)
         trans = StringTransport()
 
-        req.transport = trans
+        channel.transport = trans
 
         req.setResponseCode(200)
         req.clientproto = b"HTTP/1.1"
@@ -1436,10 +2120,11 @@ class RequestTests(unittest.TestCase, ResponseTestMixin):
         L{http.Request.write} sends an HTTP Response-Line, whatever response
         headers are set, and a last-modified header with that time.
         """
-        req = http.Request(DummyChannel(), False)
+        channel = DummyChannel()
+        req = http.Request(channel, False)
         trans = StringTransport()
 
-        req.transport = trans
+        channel.transport = trans
 
         req.setResponseCode(200)
         req.clientproto = b"HTTP/1.0"
@@ -1608,67 +2293,6 @@ class RequestTests(unittest.TestCase, ResponseTestMixin):
             ValueError, req.registerProducer, DummyProducer(), True)
 
 
-    def test_registerProducerWhenQueuedPausesPushProducer(self):
-        """
-        Calling L{Request.registerProducer} with an IPushProducer when the
-        request is queued pauses the producer.
-        """
-        req = http.Request(DummyChannel(), True)
-        producer = DummyProducer()
-        req.registerProducer(producer, True)
-        self.assertEqual(['pause'], producer.events)
-
-
-    def test_registerProducerWhenQueuedDoesntPausePullProducer(self):
-        """
-        Calling L{Request.registerProducer} with an IPullProducer when the
-        request is queued does not pause the producer, because it doesn't make
-        sense to pause a pull producer.
-        """
-        req = http.Request(DummyChannel(), True)
-        producer = DummyProducer()
-        req.registerProducer(producer, False)
-        self.assertEqual([], producer.events)
-
-
-    def test_registerProducerWhenQueuedDoesntRegisterPushProducer(self):
-        """
-        Calling L{Request.registerProducer} with an IPushProducer when the
-        request is queued does not register the producer on the request's
-        transport.
-        """
-        self.assertIdentical(
-            None, getattr(http.StringTransport, 'registerProducer', None),
-            "StringTransport cannot implement registerProducer for this test "
-            "to be valid.")
-        req = http.Request(DummyChannel(), True)
-        producer = DummyProducer()
-        req.registerProducer(producer, True)
-        # This is a roundabout assertion: http.StringTransport doesn't
-        # implement registerProducer, so Request.registerProducer can't have
-        # tried to call registerProducer on the transport.
-        self.assertIsInstance(req.transport, http.StringTransport)
-
-
-    def test_registerProducerWhenQueuedDoesntRegisterPullProducer(self):
-        """
-        Calling L{Request.registerProducer} with an IPullProducer when the
-        request is queued does not register the producer on the request's
-        transport.
-        """
-        self.assertIdentical(
-            None, getattr(http.StringTransport, 'registerProducer', None),
-            "StringTransport cannot implement registerProducer for this test "
-            "to be valid.")
-        req = http.Request(DummyChannel(), True)
-        producer = DummyProducer()
-        req.registerProducer(producer, False)
-        # This is a roundabout assertion: http.StringTransport doesn't
-        # implement registerProducer, so Request.registerProducer can't have
-        # tried to call registerProducer on the transport.
-        self.assertIsInstance(req.transport, http.StringTransport)
-
-
     def test_registerProducerWhenNotQueuedRegistersPushProducer(self):
         """
         Calling L{Request.registerProducer} with an IPushProducer when the
@@ -1816,40 +2440,66 @@ class RequestTests(unittest.TestCase, ResponseTestMixin):
         self.assertEqual((None, None), (req.producer, req.transport.producer))
 
 
-    def test_unregisterQueuedNonStreamingProducer(self):
+    def test_finishProducesLog(self):
         """
-        L{Request.unregisterProducer} unregisters a queued non-streaming
-        producer from the request but not from the transport.
+        L{http.Request.finish} will call the channel's factory to produce a log
+        message.
         """
-        existing = DummyProducer()
-        channel = DummyChannel()
+        factory = http.HTTPFactory()
+        factory.timeOut = None
+        factory._logDateTime = "sometime"
+        factory._logDateTimeCall = True
+        factory.startFactory()
+        factory.logFile = NativeStringIO()
+        proto = factory.buildProtocol(None)
+
+        val = [
+            b"GET /path HTTP/1.1\r\n",
+            b"\r\n\r\n"
+        ]
+
+        trans = StringTransport()
+        proto.makeConnection(trans)
+
+        for x in val:
+            proto.dataReceived(x)
+
+        proto._channel.requests[0].finish()
+
+        # A log message should be written out
+        self.assertIn('sometime "GET /path HTTP/1.1"',
+                      factory.logFile.getvalue())
+
+
+    def test_requestBodyTimeoutFromFactory(self):
+        """
+        L{HTTPChannel} timeouts whenever data from a request body is not
+        delivered to it in time, even when it gets built from a L{HTTPFactory}.
+        """
+        clock = Clock()
+        factory = http.HTTPFactory(timeout=100, reactor=clock)
+        factory.startFactory()
+        protocol = factory.buildProtocol(None)
         transport = StringTransport()
-        channel.transport = transport
-        transport.registerProducer(existing, True)
-        req = http.Request(channel, True)
-        req.registerProducer(DummyProducer(), False)
-        req.unregisterProducer()
-        self.assertEqual((None, existing), (req.producer, transport.producer))
 
+        # Confirm that the timeout is what we think it is.
+        self.assertEqual(protocol.timeOut, 100)
 
-    def test_unregisterQueuedStreamingProducer(self):
-        """
-        L{Request.unregisterProducer} unregisters a queued streaming producer
-        from the request but not from the transport.
-        """
-        existing = DummyProducer()
-        channel = DummyChannel()
-        transport = StringTransport()
-        channel.transport = transport
-        transport.registerProducer(existing, True)
-        req = http.Request(channel, True)
-        req.registerProducer(DummyProducer(), True)
-        req.unregisterProducer()
-        self.assertEqual((None, existing), (req.producer, transport.producer))
+        # This is a terrible violation of the abstraction later of
+        # _genericHTTPChannelProtocol, but we need to do it because
+        # policies.TimeoutMixin doesn't accept a reactor on the object.
+        # See https://twistedmatrix.com/trac/ticket/8488
+        protocol._channel.callLater = clock.callLater
+        protocol.makeConnection(transport)
+        protocol.dataReceived(b'POST / HTTP/1.0\r\nContent-Length: 2\r\n\r\n')
+        clock.advance(99)
+        self.assertFalse(transport.disconnecting)
+        clock.advance(2)
+        self.assertTrue(transport.disconnecting)
 
 
 
-class MultilineHeadersTestCase(unittest.TestCase):
+class MultilineHeadersTests(unittest.TestCase):
     """
     Tests to exercise handling of multiline headers by L{HTTPClient}.  RFCs 1945
     (HTTP 1.0) and 2616 (HTTP 1.1) state that HTTP message header fields can
@@ -2034,46 +2684,6 @@ class Expect100ContinueServerTests(unittest.TestCase, ResponseTestMixin):
               b"'''\n3\nabc'''\n")])
 
 
-    def test_expect100ContinueWithPipelining(self):
-        """
-        If a HTTP/1.1 client sends a 'Expect: 100-continue' header, followed
-        by another pipelined request, the 100 response does not interfere with
-        the response to the second request.
-        """
-        transport = StringTransport()
-        channel = http.HTTPChannel()
-        channel.requestFactory = DummyHTTPHandler
-        channel.makeConnection(transport)
-        channel.dataReceived(
-            b"GET / HTTP/1.1\r\n"
-            b"Host: www.example.com\r\n"
-            b"Expect: 100-continue\r\n"
-            b"Content-Length: 3\r\n"
-            b"\r\nabc"
-            b"POST /foo HTTP/1.1\r\n"
-            b"Host: www.example.com\r\n"
-            b"Content-Length: 4\r\n"
-            b"\r\ndefg")
-        response = transport.value()
-        self.assertTrue(
-            response.startswith(b"HTTP/1.1 100 Continue\r\n\r\n"))
-        response = response[len(b"HTTP/1.1 100 Continue\r\n\r\n"):]
-        self.assertResponseEquals(
-            response,
-            [(b"HTTP/1.1 200 OK",
-              b"Command: GET",
-              b"Content-Length: 13",
-              b"Version: HTTP/1.1",
-              b"Request: /",
-              b"'''\n3\nabc'''\n"),
-             (b"HTTP/1.1 200 OK",
-              b"Command: POST",
-              b"Content-Length: 14",
-              b"Version: HTTP/1.1",
-              b"Request: /foo",
-              b"'''\n4\ndefg'''\n")])
-
-
 
 def sub(keys, d):
     """
@@ -2097,79 +2707,45 @@ class DeprecatedRequestAttributesTests(unittest.TestCase):
     """
     Tests for deprecated attributes of L{twisted.web.http.Request}.
     """
-    def test_readHeaders(self):
+    def test_getClient(self):
         """
-        Reading from the C{headers} attribute is deprecated in favor of use of
-        the C{responseHeaders} attribute.
+        L{Request.getClient} is deprecated in favor of resolving the hostname
+        in application code.
         """
-        request = http.Request(DummyChannel(), True)
-        request.headers
+        channel = DummyChannel()
+        request = http.Request(channel, True)
+        request.gotLength(123)
+        request.requestReceived(b"GET", b"/", b"HTTP/1.1")
+        expected = channel.transport.getPeer().host
+        self.assertEqual(expected, request.getClient())
         warnings = self.flushWarnings(
-            offendingFunctions=[self.test_readHeaders])
+            offendingFunctions=[self.test_getClient])
 
         self.assertEqual({
                 "category": DeprecationWarning,
                 "message": (
-                    "twisted.web.http.Request.headers was deprecated in "
-                    "Twisted 13.2.0: Please use twisted.web.http.Request."
-                    "responseHeaders instead.")},
+                    "twisted.web.http.Request.getClient was deprecated "
+                    "in Twisted 15.0.0; please use Twisted Names to "
+                    "resolve hostnames instead")},
                          sub(["category", "message"], warnings[0]))
 
 
-    def test_writeHeaders(self):
+    def test_noLongerQueued(self):
         """
-        Writing to the C{headers} attribute is deprecated in favor of use of
-        the C{responseHeaders} attribute.
+        L{Request.noLongerQueued} is deprecated, as we no longer process
+        requests simultaneously.
         """
-        request = http.Request(DummyChannel(), True)
-        request.headers = {b"foo": b"bar"}
-        warnings = self.flushWarnings(
-            offendingFunctions=[self.test_writeHeaders])
+        channel = DummyChannel()
+        request = http.Request(channel)
+        request.noLongerQueued()
 
+        warnings = self.flushWarnings(
+            offendingFunctions=[self.test_noLongerQueued])
+
+        self.assertEqual(1, len(warnings))
         self.assertEqual({
                 "category": DeprecationWarning,
                 "message": (
-                    "twisted.web.http.Request.headers was deprecated in "
-                    "Twisted 13.2.0: Please use twisted.web.http.Request."
-                    "responseHeaders instead.")},
+                    "twisted.web.http.Request.noLongerQueued was deprecated "
+                    "in Twisted 16.3.0")},
                          sub(["category", "message"], warnings[0]))
-
-
-    def test_readReceivedHeaders(self):
-        """
-        Reading from the C{received_headers} attribute is deprecated in favor
-        of use of the C{requestHeaders} attribute.
-        """
-        request = http.Request(DummyChannel(), True)
-        request.received_headers
-        warnings = self.flushWarnings(
-            offendingFunctions=[self.test_readReceivedHeaders])
-
-        self.assertEqual({
-                "category": DeprecationWarning,
-                "message": (
-                    "twisted.web.http.Request.received_headers was deprecated "
-                    "in Twisted 13.2.0: Please use twisted.web.http.Request."
-                    "requestHeaders instead.")},
-                         sub(["category", "message"], warnings[0]))
-
-
-    def test_writeReceivedHeaders(self):
-        """
-        Writing to the C{received_headers} attribute is deprecated in favor of use of
-        the C{requestHeaders} attribute.
-        """
-        request = http.Request(DummyChannel(), True)
-        request.received_headers = {b"foo": b"bar"}
-        warnings = self.flushWarnings(
-            offendingFunctions=[self.test_writeReceivedHeaders])
-
-        self.assertEqual({
-                "category": DeprecationWarning,
-                "message": (
-                    "twisted.web.http.Request.received_headers was deprecated "
-                    "in Twisted 13.2.0: Please use twisted.web.http.Request."
-                    "requestHeaders instead.")},
-                         sub(["category", "message"], warnings[0]))
-
-

@@ -7,7 +7,7 @@ Standardized versions of various cool and/or strange things that you can do
 with Python's reflection capabilities.
 """
 
-from __future__ import division, absolute_import
+from __future__ import division, absolute_import, print_function
 
 import sys
 import types
@@ -16,7 +16,6 @@ import pickle
 import weakref
 import re
 import traceback
-import warnings
 from collections import deque
 
 RegexType = type(re.compile(""))
@@ -24,10 +23,8 @@ RegexType = type(re.compile(""))
 
 from twisted.python.compat import reraise, nativeString, NativeStringIO
 from twisted.python.compat import _PY3
-from twisted.python.deprecate import deprecated
 from twisted.python import compat
 from twisted.python.deprecate import _fullyQualifiedName as fullyQualifiedName
-from twisted.python.versions import Version
 
 
 def prefixedMethodNames(classObj, prefix):
@@ -386,16 +383,24 @@ def _determineClassName(x):
 def _safeFormat(formatter, o):
     """
     Helper function for L{safe_repr} and L{safe_str}.
+
+    Called when C{repr} or C{str} fail. Returns a string containing info about
+    C{o} and the latest exception.
+
+    @param formatter: C{str} or C{repr}.
+    @type formatter: C{type}
+    @param o: Any object.
+
+    @rtype: C{str}
+    @return: A string containing information about C{o} and the raised
+        exception.
     """
-    try:
-        return formatter(o)
-    except:
-        io = NativeStringIO()
-        traceback.print_exc(file=io)
-        className = _determineClassName(o)
-        tbValue = io.getvalue()
-        return "<%s instance at 0x%x with %s error:\n %s>" % (
-            className, id(o), formatter.__name__, tbValue)
+    io = NativeStringIO()
+    traceback.print_exc(file=io)
+    className = _determineClassName(o)
+    tbValue = io.getvalue()
+    return "<%s instance at 0x%x with %s error:\n %s>" % (
+        className, id(o), formatter.__name__, tbValue)
 
 
 
@@ -408,7 +413,10 @@ def safe_repr(o):
 
     @rtype: C{str}
     """
-    return _safeFormat(repr, o)
+    try:
+        return repr(o)
+    except:
+        return _safeFormat(repr, o)
 
 
 
@@ -421,7 +429,17 @@ def safe_str(o):
 
     @rtype: C{str}
     """
-    return _safeFormat(str, o)
+    if _PY3 and isinstance(o, bytes):
+        # If o is bytes and seems to holds a utf-8 encoded string,
+        # convert it to str.
+        try:
+            return o.decode('utf-8')
+        except:
+            pass
+    try:
+        return str(o)
+    except:
+        return _safeFormat(str, o)
 
 
 class QueueMethod:
@@ -435,44 +453,13 @@ class QueueMethod:
         self.calls.append((self.name, args))
 
 
-def funcinfo(function):
-    """
-    this is more documentation for myself than useful code.
-    """
-    warnings.warn(
-        "[v2.5] Use inspect.getargspec instead of twisted.python.reflect.funcinfo",
-        DeprecationWarning,
-        stacklevel=2)
-    code=function.func_code
-    name=function.func_name
-    argc=code.co_argcount
-    argv=code.co_varnames[:argc]
-    defaults=function.func_defaults
-
-    out = []
-
-    out.append('The function %s accepts %s arguments' % (name ,argc))
-    if defaults:
-        required=argc-len(defaults)
-        out.append('It requires %s arguments' % required)
-        out.append('The arguments required are: %s' % argv[:required])
-        out.append('additional arguments are:')
-        for i in range(argc-required):
-            j=i+required
-            out.append('%s which has a default of' % (argv[j], defaults[i]))
-    return out
-
-
-ISNT=0
-WAS=1
-IS=2
-
 
 def fullFuncName(func):
     qualName = (str(pickle.whichmodule(func, func.__name__)) + '.' + func.__name__)
     if namedObject(qualName) is not func:
         raise Exception("Couldn't find %s as %s." % (func, qualName))
     return qualName
+
 
 
 def getClass(obj):
@@ -486,72 +473,6 @@ def getClass(obj):
         return type(obj)
 
 
-## the following were factored out of usage
-
-if not _PY3:
-    # The following functions aren't documented, nor tested, have much simpler
-    # builtin implementations and are not used within Twisted or "known"
-    # projects.
-
-    @deprecated(Version("Twisted", 14, 0, 0))
-    def getcurrent(clazz):
-        assert type(clazz) == types.ClassType, 'must be a class...'
-        module = namedModule(clazz.__module__)
-        currclass = getattr(module, clazz.__name__, None)
-        if currclass is None:
-            return clazz
-        return currclass
-
-
-    # Class graph nonsense
-    # I should really have a better name for this...
-    @deprecated(Version("Twisted", 14, 0, 0), "isinstance")
-    def isinst(inst,clazz):
-        if type(inst) != compat.InstanceType or type(clazz)!= types.ClassType:
-            return isinstance(inst,clazz)
-        cl = inst.__class__
-        cl2 = getcurrent(cl)
-        clazz = getcurrent(clazz)
-        if issubclass(cl2,clazz):
-            if cl == cl2:
-                return WAS
-            else:
-                inst.__class__ = cl2
-                return IS
-        else:
-            return ISNT
-
-
-    # These functions are still imported by libraries used in turn by the
-    # Twisted unit tests, like Nevow 0.10. Since they are deprecated,
-    # there's no need to port them to Python 3 (hence the condition above).
-    # https://bazaar.launchpad.net/~divmod-dev/divmod.org/trunk/revision/2716
-    # removed the dependency in Nevow. Once that is released, these functions
-    # can be safely removed from Twisted.
-
-    @deprecated(Version("Twisted", 11, 0, 0), "inspect.getmro")
-    def allYourBase(classObj, baseClass=None):
-        """
-        allYourBase(classObj, baseClass=None) -> list of all base
-        classes that are subclasses of baseClass, unless it is None,
-        in which case all bases will be added.
-        """
-        l = []
-        _accumulateBases(classObj, l, baseClass)
-        return l
-
-
-    @deprecated(Version("Twisted", 11, 0, 0), "inspect.getmro")
-    def accumulateBases(classObj, l, baseClass=None):
-        _accumulateBases(classObj, l, baseClass)
-
-
-    def _accumulateBases(classObj, l, baseClass=None):
-        for base in classObj.__bases__:
-            if baseClass is None or issubclass(base, baseClass):
-                l.append(base)
-            _accumulateBases(base, l, baseClass)
-
 
 def accumulateClassDict(classObj, attr, adict, baseClass=None):
     """
@@ -560,7 +481,7 @@ def accumulateClassDict(classObj, attr, adict, baseClass=None):
     Assuming all class attributes of this name are dictionaries.
     If any of the dictionaries being accumulated have the same key, the
     one highest in the class heirarchy wins.
-    (XXX: If \"higest\" means \"closest to the starting class\".)
+    (XXX: If \"highest\" means \"closest to the starting class\".)
 
     Ex::
 
@@ -580,7 +501,7 @@ def accumulateClassDict(classObj, attr, adict, baseClass=None):
 
       accumulateClassDict(Lunch, \"properties\", dct)
 
-      print dct
+      print(dct)
 
     {\"taste\": \"bland\", \"colour\": \"green\", \"vegan\": 1}
     """
@@ -688,15 +609,11 @@ if not _PY3:
 __all__ = [
     'InvalidName', 'ModuleNotFound', 'ObjectNotFound',
 
-    'ISNT', 'WAS', 'IS',
-
     'QueueMethod',
 
-    'funcinfo', 'fullFuncName', 'qual', 'getcurrent', 'getClass', 'isinst',
     'namedModule', 'namedObject', 'namedClass', 'namedAny', 'requireModule',
-    'safe_repr', 'safe_str', 'allYourBase', 'accumulateBases',
-    'prefixedMethodNames', 'addMethodNamesToDict', 'prefixedMethods',
-    'accumulateMethods',
+    'safe_repr', 'safe_str', 'prefixedMethodNames', 'addMethodNamesToDict',
+    'prefixedMethods', 'accumulateMethods', 'fullFuncName', 'qual', 'getClass',
     'accumulateClassDict', 'accumulateClassList', 'isSame', 'isLike',
     'modgrep', 'isOfType', 'findInstances', 'objgrep', 'filenameToModuleName',
     'fullyQualifiedName']

@@ -8,7 +8,7 @@ from twisted.words.protocols.jabber.xmpp_stringprep import (
 
 
 
-class DeprecationTestCase(unittest.TestCase):
+class DeprecationTests(unittest.TestCase):
     """
     Deprecations in L{twisted.words.protocols.jabber.xmpp_stringprep}.
     """
@@ -29,7 +29,7 @@ class DeprecationTestCase(unittest.TestCase):
 
 
 
-class XMPPStringPrepTest(unittest.TestCase):
+class XMPPStringPrepTests(unittest.TestCase):
     """
     The nodeprep stringprep profile is similar to the resourceprep profile,
     but does an extra mapping of characters (table B.2) and disallows
@@ -46,7 +46,7 @@ class XMPPStringPrepTest(unittest.TestCase):
 
     def testResourcePrep(self):
         self.assertEqual(resourceprep.prepare(u'resource'), u'resource')
-        self.assertNotEquals(resourceprep.prepare(u'Resource'), u'resource')
+        self.assertNotEqual(resourceprep.prepare(u'Resource'), u'resource')
         self.assertEqual(resourceprep.prepare(u' '), u' ')
 
         self.assertEqual(resourceprep.prepare(u'Henry \u2163'), u'Henry IV')

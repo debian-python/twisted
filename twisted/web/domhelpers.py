@@ -10,6 +10,10 @@ import StringIO
 
 from twisted.web import microdom
 from twisted.web.microdom import getElementsByTagName, escape, unescape
+# These modules are imported here as a shortcut.
+escape
+getElementsByTagName
+
 
 
 class NodeLookupError(Exception):
@@ -53,7 +57,7 @@ def get(node, nodeId):
     """
     result = _get(node, nodeId)
     if result: return result
-    raise NodeLookupError, nodeId
+    raise NodeLookupError(nodeId)
 
 def getIfExists(node, nodeId):
     """

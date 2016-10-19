@@ -52,7 +52,7 @@ def setUp(greet=True):
 def strip(f):
     return lambda result, f=f: f()
 
-class POP3ClientLoginTestCase(unittest.TestCase):
+class POP3ClientLoginTests(unittest.TestCase):
     def testNegativeGreeting(self):
         p, t = setUp(greet=False)
         p.allowInsecureLogin = True
@@ -149,7 +149,7 @@ class POP3ClientLoginTestCase(unittest.TestCase):
         p, t = setUp(greet=False)
         p.dataReceived("+OK Howdy\r\n")
         d = p.login("username", "password")
-        self.failIf(t.value())
+        self.assertFalse(t.value())
         return self.assertFailure(
             d, InsecureAuthenticationDisallowed)
 
@@ -177,7 +177,8 @@ class ListConsumer:
     def __init__(self):
         self.data = {}
 
-    def consume(self, (item, value)):
+    def consume(self, result):
+        (item, value) = result
         self.data.setdefault(item, []).append(value)
 
 class MessageConsumer:
@@ -187,7 +188,7 @@ class MessageConsumer:
     def consume(self, line):
         self.data.append(line)
 
-class POP3ClientListTestCase(unittest.TestCase):
+class POP3ClientListTests(unittest.TestCase):
     def testListSize(self):
         p, t = setUp()
         d = p.listSize()
@@ -248,7 +249,7 @@ class POP3ClientListTestCase(unittest.TestCase):
             d, ServerErrorResponse).addCallback(
             lambda exc: self.assertEqual(exc.args[0], "Fatal doom server exploded"))
 
-class POP3ClientMessageTestCase(unittest.TestCase):
+class POP3ClientMessageTests(unittest.TestCase):
     def testRetrieve(self):
         p, t = setUp()
         d = p.retrieve(7)
@@ -345,7 +346,7 @@ class POP3ClientMessageTestCase(unittest.TestCase):
 
 
 
-class POP3ClientMiscTestCase(unittest.TestCase):
+class POP3ClientMiscTests(unittest.TestCase):
     def testCapability(self):
         p, t = setUp()
         d = p.capabilities(useCache=0)
@@ -482,7 +483,7 @@ class TLSServerFactory(protocol.ServerFactory):
                 self.transport.startTLS(self.context)
 
 
-class POP3TLSTestCase(unittest.TestCase):
+class POP3TLSTests(unittest.TestCase):
     """
     Tests for POP3Client's support for TLS connections.
     """
@@ -544,7 +545,7 @@ class POP3TLSTestCase(unittest.TestCase):
         return cp.deferred
 
 
-class POP3TimeoutTestCase(POP3HelperMixin, unittest.TestCase):
+class POP3TimeoutTests(POP3HelperMixin, unittest.TestCase):
     def testTimeout(self):
         def login():
             d = self.client.login('test', 'twisted')
@@ -577,17 +578,17 @@ class POP3TimeoutTestCase(POP3HelperMixin, unittest.TestCase):
 
 
 if ClientTLSContext is None:
-    for case in (POP3TLSTestCase,):
+    for case in (POP3TLSTests,):
         case.skip = "OpenSSL not present"
 elif interfaces.IReactorSSL(reactor, None) is None:
-    for case in (POP3TLSTestCase,):
+    for case in (POP3TLSTests,):
         case.skip = "Reactor doesn't support SSL"
 
 
 
 import twisted.mail.pop3client
 
-class POP3ClientMiscTestCase(unittest.TestCase):
+class POP3ClientModuleStructureTests(unittest.TestCase):
     """
     Miscellaneous tests more to do with module/package structure than
     anything to do with the POP3 client.
@@ -614,7 +615,7 @@ class POP3ClientMiscTestCase(unittest.TestCase):
 
         for pc in publicClasses:
             if not pc == 'POP3Client':
-                self.failUnless(hasattr(twisted.mail.pop3, pc))
+                self.assertTrue(hasattr(twisted.mail.pop3, pc))
             else:
-                self.failUnless(hasattr(twisted.mail.pop3,
+                self.assertTrue(hasattr(twisted.mail.pop3,
                     'AdvancedPOP3Client'))

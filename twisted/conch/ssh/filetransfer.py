@@ -3,16 +3,16 @@
 # Copyright (c) Twisted Matrix Laboratories.
 # See LICENSE for details.
 
+import errno
+import struct
 
-import struct, errno
+from zope.interface import implementer
 
+from twisted.conch.interfaces import ISFTPServer, ISFTPFile
+from twisted.conch.ssh.common import NS, getNS
 from twisted.internet import defer, protocol
 from twisted.python import failure, log
 
-from common import NS, getNS
-from twisted.conch.interfaces import ISFTPServer, ISFTPFile
-
-from zope import interface
 
 
 
@@ -51,11 +51,10 @@ class FileTransferBase(protocol.Protocol):
                 continue
             try:
                 f(data)
-            except:
+            except Exception:
                 log.err()
                 continue
-                reqId ,= struct.unpack('!L', data[:4])
-                self._ebStatus(failure.Failure(e), reqId)
+
 
     def _parseAttributes(self, data):
         flags ,= struct.unpack('!L', data[:4])
@@ -154,7 +153,7 @@ class FileTransferServer(FileTransferBase):
     def _cbOpenFile(self, fileObj, requestId):
         fileId = str(hash(fileObj))
         if fileId in self.openFiles:
-            raise KeyError, 'id already open'
+            raise KeyError('id already open')
         self.openFiles[fileId] = fileObj
         self.sendPacket(FXP_HANDLE, requestId + NS(fileId))
 
@@ -268,7 +267,7 @@ class FileTransferServer(FileTransferBase):
     def _cbOpenDirectory(self, dirObj, requestId):
         handle = str(hash(dirObj))
         if handle in self.openDirs:
-            raise KeyError, "already opened this directory"
+            raise KeyError("already opened this directory")
         self.openDirs[handle] = [dirObj, iter(dirObj)]
         self.sendPacket(FXP_HANDLE, requestId + NS(handle))
 
@@ -770,10 +769,10 @@ class FileTransferClient(FileTransferBase):
         These items are sent by the client to indicate additional features.
         """
 
+
+
+@implementer(ISFTPFile)
 class ClientFile:
-
-    interface.implements(ISFTPFile)
-
     def __init__(self, parent, handle):
         self.parent = parent
         self.handle = NS(handle)
@@ -891,7 +890,7 @@ FILEXFER_ATTR_UIDGID      = 0x00000002
 FILEXFER_ATTR_OWNERGROUP  = FILEXFER_ATTR_UIDGID
 FILEXFER_ATTR_PERMISSIONS = 0x00000004
 FILEXFER_ATTR_ACMODTIME   = 0x00000008
-FILEXFER_ATTR_EXTENDED    = 0x80000000L
+FILEXFER_ATTR_EXTENDED    = 0x80000000
 
 FILEXFER_TYPE_REGULAR        = 1
 FILEXFER_TYPE_DIRECTORY      = 2

@@ -7,13 +7,14 @@ TCP support for IOCP reactor
 
 import socket, operator, errno, struct
 
-from zope.interface import implements, classImplements
+from zope.interface import implementer, classImplements
 
 from twisted.internet import interfaces, error, address, main, defer
-from twisted.internet.abstract import _LogOwner, isIPAddress, isIPv6Address
+from twisted.internet.protocol import Protocol
+from twisted.internet.abstract import _LogOwner, isIPv6Address
 from twisted.internet.tcp import _SocketCloser, Connector as TCPConnector
 from twisted.internet.tcp import _AbortingMixin, _BaseBaseClient, _BaseTCPClient
-from twisted.python import log, failure, reflect, util
+from twisted.python import log, failure, reflect
 
 from twisted.internet.iocpreactor import iocpsupport as _iocp, abstract
 from twisted.internet.iocpreactor.interfaces import IReadWriteHandle
@@ -34,15 +35,14 @@ connectExErrors = {
         ERROR_NETWORK_UNREACHABLE: errno.WSAENETUNREACH,
         }
 
+@implementer(IReadWriteHandle, interfaces.ITCPTransport,
+             interfaces.ISystemHandle)
 class Connection(abstract.FileHandle, _SocketCloser, _AbortingMixin):
     """
     @ivar TLS: C{False} to indicate the connection is in normal TCP mode,
         C{True} to indicate that TLS has been started and that operations must
         be routed through the L{TLSMemoryBIOProtocol} instance.
     """
-    implements(IReadWriteHandle, interfaces.ITCPTransport,
-               interfaces.ISystemHandle)
-
     TLS = False
 
 
@@ -289,8 +289,19 @@ class Client(_BaseBaseClient, _BaseTCPClient, Connection):
             self.connected = True
             logPrefix = self._getLogPrefix(self.protocol)
             self.logstr = logPrefix + ",client"
-            self.protocol.makeConnection(self)
-            self.startReading()
+            if self.protocol is None:
+                # Factory.buildProtocol is allowed to return None.  In that
+                # case, make up a protocol to satisfy the rest of the
+                # implementation; connectionLost is going to be called on
+                # something, for example.  This is easier than adding special
+                # case support for a None protocol throughout the rest of the
+                # transport implementation.
+                self.protocol = Protocol()
+                # But dispose of the connection quickly.
+                self.loseConnection()
+            else:
+                self.protocol.makeConnection(self)
+                self.startReading()
 
 
     def doConnect(self):
@@ -376,8 +387,8 @@ class Connector(TCPConnector):
 
 
 
+@implementer(interfaces.IListeningPort)
 class Port(_SocketCloser, _LogOwner):
-    implements(interfaces.IListeningPort)
 
     connected = False
     disconnected = False
@@ -428,8 +439,8 @@ class Port(_SocketCloser, _LogOwner):
             else:
                 addr = (self.interface, self.port)
             skt.bind(addr)
-        except socket.error, le:
-            raise error.CannotListenError, (self.interface, self.port, le)
+        except socket.error as le:
+            raise error.CannotListenError(self.interface, self.port, le)
 
         self.addrLen = _iocp.maxAddrLen(skt.fileno())
 
@@ -574,5 +585,3 @@ class Port(_SocketCloser, _LogOwner):
 
         if rc and rc != ERROR_IO_PENDING:
             self.handleAccept(rc, evt)
-
-

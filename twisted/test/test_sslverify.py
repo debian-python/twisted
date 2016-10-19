@@ -8,40 +8,66 @@ Tests for L{twisted.internet._sslverify}.
 
 from __future__ import division, absolute_import
 
+import sys
 import itertools
 
 from zope.interface import implementer
 
+skipSSL = None
+skipSNI = None
+skipNPN = None
+skipALPN = None
 try:
-    from OpenSSL import SSL
-    from OpenSSL.crypto import PKey, X509
-    from OpenSSL.crypto import TYPE_RSA, FILETYPE_PEM
-    skipSSL = False
-    if hasattr(SSL.Context, "set_tlsext_servername_callback"):
-        skipSNI = False
-    else:
-        skipSNI = "PyOpenSSL 0.13 or greater required for SNI support."
+    import OpenSSL
 except ImportError:
     skipSSL = "OpenSSL is required for SSL tests."
     skipSNI = skipSSL
+    skipNPN = skipSSL
+    skipALPN = skipSSL
+else:
+    from OpenSSL import SSL
+    from OpenSSL.crypto import PKey, X509
+    from OpenSSL.crypto import TYPE_RSA, FILETYPE_PEM
+    if getattr(SSL.Context, "set_tlsext_servername_callback", None) is None:
+        skipSNI = "PyOpenSSL 0.13 or greater required for SNI support."
 
+    try:
+        ctx = SSL.Context(SSL.SSLv23_METHOD)
+        ctx.set_npn_advertise_callback(lambda c: None)
+    except AttributeError:
+        skipNPN = "PyOpenSSL 0.15 or greater is required for NPN support"
+    except NotImplementedError:
+        skipNPN = "OpenSSL 1.0.1 or greater required for NPN support"
+
+    try:
+        ctx = SSL.Context(SSL.SSLv23_METHOD)
+        ctx.set_alpn_select_callback(lambda c: None)
+    except AttributeError:
+        skipALPN = "PyOpenSSL 0.15 or greater is required for ALPN support"
+    except NotImplementedError:
+        skipALPN = "OpenSSL 1.0.2 or greater required for ALPN support"
+
+from twisted.test.test_twisted import SetAsideModule
 from twisted.test.iosim import connectedServerAndClient
 
 from twisted.internet.error import ConnectionClosed
-from twisted.python.compat import nativeString
+from twisted.python.compat import nativeString, _PY3
 from twisted.python.constants import NamedConstant, Names
 from twisted.python.filepath import FilePath
+from twisted.python.modules import getModule
 
-from twisted.trial import unittest
+from twisted.trial import unittest, util
 from twisted.internet import protocol, defer, reactor
 
 from twisted.internet.error import CertificateError, ConnectionLost
 from twisted.internet import interfaces
+from twisted.python.versions import Version
 
 if not skipSSL:
     from twisted.internet.ssl import platformTrust, VerificationError
     from twisted.internet import _sslverify as sslverify
     from twisted.protocols.tls import TLSMemoryBIOFactory
+
 
 # A couple of static PEM-format certificates to be used by various tests.
 A_HOST_CERTIFICATE_PEM = """
@@ -86,6 +112,35 @@ A_PEER_CERTIFICATE_PEM = """
 -----END CERTIFICATE-----
 """
 
+A_KEYPAIR = getModule(__name__).filePath.sibling('server.pem').getContent()
+
+
+
+class DummyOpenSSL(object):
+    """
+    A fake of the L{OpenSSL} module.
+
+    @ivar __version__: A string describing I{pyOpenSSL} version number the fake
+        is emulating.
+    @type __version__: L{str}
+    """
+    def __init__(self, major, minor, patch=None):
+        """
+        @param major: The major version number to emulate.  I{X} in the version
+            I{X.Y}.
+        @type major: L{int}
+
+        @param minor: The minor version number to emulate.  I{Y} in the version
+            I{X.Y}.
+        @type minor: L{int}
+
+        """
+        self.__version__ = "%d.%d" % (major, minor)
+        if patch is not None:
+            self.__version__ += ".%d" % (patch,)
+
+_preTwelveOpenSSL = DummyOpenSSL(0, 11)
+_postTwelveOpenSSL = DummyOpenSSL(0, 13, 1)
 
 
 def counter(counter=itertools.count()):
@@ -146,6 +201,53 @@ def certificatesForAuthorityAndServer(commonName=b'example.com'):
 
 
 
+def _loopbackTLSConnection(serverOpts, clientOpts):
+    """
+    Common implementation code for both L{loopbackTLSConnection} and
+    L{loopbackTLSConnectionInMemory}. Creates a loopback TLS connection
+    using the provided server and client context factories.
+
+    @param serverOpts: An OpenSSL context factory for the server.
+    @type serverOpts: C{OpenSSLCertificateOptions}, or any class with an
+        equivalent API.
+
+    @param clientOpts: An OpenSSL context factory for the client.
+    @type clientOpts: C{OpenSSLCertificateOptions}, or any class with an
+        equivalent API.
+
+    @return: 3-tuple of server-protocol, client-protocol, and L{IOPump}
+    @rtype: L{tuple}
+    """
+    class GreetingServer(protocol.Protocol):
+        greeting = b"greetings!"
+        def connectionMade(self):
+            self.transport.write(self.greeting)
+
+    class ListeningClient(protocol.Protocol):
+        data = b''
+        lostReason = None
+        def dataReceived(self, data):
+            self.data += data
+        def connectionLost(self, reason):
+            self.lostReason = reason
+
+    clientFactory = TLSMemoryBIOFactory(
+        clientOpts, isClient=True,
+        wrappedFactory=protocol.Factory.forProtocol(GreetingServer)
+    )
+    serverFactory = TLSMemoryBIOFactory(
+        serverOpts, isClient=False,
+        wrappedFactory=protocol.Factory.forProtocol(ListeningClient)
+    )
+
+    sProto, cProto, pump = connectedServerAndClient(
+        lambda: serverFactory.buildProtocol(None),
+        lambda: clientFactory.buildProtocol(None)
+    )
+    return sProto, cProto, pump
+
+
+
 def loopbackTLSConnection(trustRoot, privateKeyFile, chainedCertFile=None):
     """
     Create a loopback TLS connection with the given trust and keys.
@@ -179,36 +281,58 @@ def loopbackTLSConnection(trustRoot, privateKeyFile, chainedCertFile=None):
             ctx.check_privatekey()
             return ctx
 
-    class GreetingServer(protocol.Protocol):
-        greeting = b"greetings!"
-        def connectionMade(self):
-            self.transport.write(self.greeting)
-
-    class ListeningClient(protocol.Protocol):
-        data = b''
-        lostReason = None
-        def dataReceived(self, data):
-            self.data += data
-        def connectionLost(self, reason):
-            self.lostReason = reason
-
     serverOpts = ContextFactory()
     clientOpts = sslverify.OpenSSLCertificateOptions(trustRoot=trustRoot)
 
-    clientFactory = TLSMemoryBIOFactory(
-        clientOpts, isClient=True,
-        wrappedFactory=protocol.Factory.forProtocol(GreetingServer)
+    return _loopbackTLSConnection(serverOpts, clientOpts)
+
+
+
+def loopbackTLSConnectionInMemory(trustRoot, privateKey,
+                                  serverCertificate, clientProtocols=None,
+                                  serverProtocols=None,
+                                  clientOptions=None):
+    """
+    Create a loopback TLS connection with the given trust and keys. Like
+    L{loopbackTLSConnection}, but using in-memory certificates and keys rather
+    than writing them to disk.
+
+    @param trustRoot: the C{trustRoot} argument for the client connection's
+        context.
+    @type trustRoot: L{sslverify.IOpenSSLTrustRoot}
+
+    @param privateKey: The private key.
+    @type privateKey: L{str} (native string)
+
+    @param serverCertificate: The certificate used by the server.
+    @type chainedCertFile: L{str} (native string)
+
+    @param clientProtocols: The protocols the client is willing to negotiate
+        using NPN/ALPN.
+
+    @param serverProtocols: The protocols the server is willing to negotiate
+        using NPN/ALPN.
+
+    @param clientOptions: The type of C{OpenSSLCertificateOptions} class to
+        use for the client. Defaults to C{OpenSSLCertificateOptions}.
+
+    @return: 3-tuple of server-protocol, client-protocol, and L{IOPump}
+    @rtype: L{tuple}
+    """
+    if clientOptions is None:
+        clientOptions = sslverify.OpenSSLCertificateOptions
+
+    clientCertOpts = clientOptions(
+        trustRoot=trustRoot,
+        acceptableProtocols=clientProtocols
     )
-    serverFactory = TLSMemoryBIOFactory(
-        serverOpts, isClient=False,
-        wrappedFactory=protocol.Factory.forProtocol(ListeningClient)
+    serverCertOpts = sslverify.OpenSSLCertificateOptions(
+        privateKey=privateKey,
+        certificate=serverCertificate,
+        acceptableProtocols=serverProtocols,
     )
 
-    sProto, cProto, pump = connectedServerAndClient(
-        lambda: serverFactory.buildProtocol(None),
-        lambda: clientFactory.buildProtocol(None)
-    )
-    return sProto, cProto, pump
+    return _loopbackTLSConnection(serverCertOpts, clientCertOpts)
 
 
 
@@ -347,7 +471,7 @@ class FakeContext(object):
 
 
 
-class ClientOptions(unittest.SynchronousTestCase):
+class ClientOptionsTests(unittest.SynchronousTestCase):
     """
     Tests for L{sslverify.optionsForClientTLS}.
     """
@@ -389,7 +513,7 @@ class ClientOptions(unittest.SynchronousTestCase):
 
 
 
-class OpenSSLOptions(unittest.TestCase):
+class OpenSSLOptionsTests(unittest.TestCase):
     if skipSSL:
         skip = skipSSL
 
@@ -776,7 +900,7 @@ class OpenSSLOptions(unittest.TestCase):
                 sslverify.DN(CN=b'a', OU=b'hello'),
                 sslverify.DistinguishedName(commonName=b'a',
                                             organizationalUnitName=b'hello'))
-        self.assertNotEquals(
+        self.assertNotEqual(
                 sslverify.DN(CN=b'a', OU=b'hello'),
                 sslverify.DN(CN=b'a', OU=b'hello', emailAddress=b'xxx'))
         dn = sslverify.DN(CN=b'abcdefg')
@@ -830,6 +954,15 @@ class OpenSSLOptions(unittest.TestCase):
         certificate.
         """
         c = sslverify.Certificate.loadPEM(A_HOST_CERTIFICATE_PEM)
+        pk = c.getPublicKey()
+        keyHash = pk.keyHash()
+        # Maintenance Note: the algorithm used to compute the "public key hash"
+        # is highly dubious and can differ between underlying versions of
+        # OpenSSL (and across versions of Twisted), since it is not actually
+        # the hash of the public key by itself.  If we can get the appropriate
+        # APIs to get the hash of the key itself out of OpenSSL, then we should
+        # be able to make it statically declared inline below again rather than
+        # computing it here.
         self.assertEqual(
             c.inspect().split('\n'),
             ["Certificate For Subject:",
@@ -852,7 +985,21 @@ class OpenSSLOptions(unittest.TestCase):
              "",
              "Serial Number: 12345",
              "Digest: C4:96:11:00:30:C3:EC:EE:A3:55:AA:ED:8C:84:85:18",
-             "Public Key with Hash: ff33994c80812aa95a79cdb85362d054"])
+             "Public Key with Hash: " + keyHash])
+
+
+    def test_publicKeyMatching(self):
+        """
+        L{PublicKey.matches} returns L{True} for keys from certificates with
+        the same key, and L{False} for keys from certificates with different
+        keys.
+        """
+        hostA = sslverify.Certificate.loadPEM(A_HOST_CERTIFICATE_PEM)
+        hostB = sslverify.Certificate.loadPEM(A_HOST_CERTIFICATE_PEM)
+        peerA = sslverify.Certificate.loadPEM(A_PEER_CERTIFICATE_PEM)
+
+        self.assertTrue(hostA.getPublicKey().matches(hostB.getPublicKey()))
+        self.assertFalse(peerA.getPublicKey().matches(hostA.getPublicKey()))
 
 
     def test_certificateOptionsSerialization(self):
@@ -862,7 +1009,7 @@ class OpenSSLOptions(unittest.TestCase):
         firstOpts = sslverify.OpenSSLCertificateOptions(
             privateKey=self.sKey,
             certificate=self.sCert,
-            method=SSL.SSLv3_METHOD,
+            method=SSL.SSLv23_METHOD,
             verify=True,
             caCerts=[self.sCert],
             verifyDepth=2,
@@ -882,7 +1029,7 @@ class OpenSSLOptions(unittest.TestCase):
         opts.__setstate__(state)
         self.assertEqual(opts.privateKey, self.sKey)
         self.assertEqual(opts.certificate, self.sCert)
-        self.assertEqual(opts.method, SSL.SSLv3_METHOD)
+        self.assertEqual(opts.method, SSL.SSLv23_METHOD)
         self.assertEqual(opts.verify, True)
         self.assertEqual(opts.caCerts, [self.sCert])
         self.assertEqual(opts.verifyDepth, 2)
@@ -892,6 +1039,10 @@ class OpenSSLOptions(unittest.TestCase):
         self.assertEqual(opts.enableSessions, False)
         self.assertEqual(opts.fixBrokenPeers, True)
         self.assertEqual(opts.enableSessionTickets, True)
+
+    test_certificateOptionsSerialization.suppress = [
+        util.suppress(category = DeprecationWarning,
+            message='twisted\.internet\._sslverify\.*__[gs]etstate__')]
 
 
     def test_certificateOptionsSessionTickets(self):
@@ -949,8 +1100,8 @@ class OpenSSLOptions(unittest.TestCase):
 
         def afterLost(result):
             ((cSuccess, cResult), (sSuccess, sResult)) = result
-            self.failIf(cSuccess)
-            self.failIf(sSuccess)
+            self.assertFalse(cSuccess)
+            self.assertFalse(sSuccess)
             # Win32 fails to report the SSL Error, and report a connection lost
             # instead: there is a race condition so that's not totally
             # surprising (see ticket #2877 in the tracker)
@@ -978,8 +1129,8 @@ class OpenSSLOptions(unittest.TestCase):
                                consumeErrors=True)
         def afterLost(result):
             ((cSuccess, cResult), (sSuccess, sResult)) = result
-            self.failIf(cSuccess)
-            self.failIf(sSuccess)
+            self.assertFalse(cSuccess)
+            self.assertFalse(sSuccess)
 
         return d.addCallback(afterLost)
 
@@ -1057,6 +1208,33 @@ class OpenSSLOptions(unittest.TestCase):
 
         return onData.addCallback(
                 lambda result: self.assertEqual(result, WritingProtocol.byte))
+
+
+
+class DeprecationTests(unittest.SynchronousTestCase):
+    """
+    Tests for deprecation of L{sslverify.OpenSSLCertificateOptions}'s support
+    of the pickle protocol.
+    """
+    if skipSSL:
+        skip = skipSSL
+
+    def test_getstateDeprecation(self):
+        """
+        L{sslverify.OpenSSLCertificateOptions.__getstate__} is deprecated.
+        """
+        self.callDeprecated(
+            (Version("Twisted", 15, 0, 0), "a real persistence system"),
+            sslverify.OpenSSLCertificateOptions().__getstate__)
+
+
+    def test_setstateDeprecation(self):
+        """
+        L{sslverify.OpenSSLCertificateOptions.__setstate__} is deprecated.
+        """
+        self.callDeprecated(
+            (Version("Twisted", 15, 0, 0), "a real persistence system"),
+            sslverify.OpenSSLCertificateOptions().__setstate__, {})
 
 
 
@@ -1138,20 +1316,6 @@ class ProtocolVersionTests(unittest.TestCase):
                  ProtocolVersion.TLSv1_1,
                  ProtocolVersion.TLSv1_2]),
             self._protocols(sslverify.OpenSSLCertificateOptions()))
-
-
-    def test_SSLv23(self):
-        """
-        When L{sslverify.OpenSSLCertificateOptions} is initialized with
-        C{SSLv23_METHOD} all versions of TLS and SSLv3 are allowed.
-        """
-        self.assertEqual(
-            set([ProtocolVersion.SSLv3,
-                 ProtocolVersion.TLSv1_0,
-                 ProtocolVersion.TLSv1_1,
-                 ProtocolVersion.TLSv1_2]),
-            self._protocols(sslverify.OpenSSLCertificateOptions(
-                    method=SSL.SSLv23_METHOD)))
 
 
 
@@ -1555,7 +1719,8 @@ class ServiceIdentityTests(unittest.SynchronousTestCase):
         )
         self.assertEqual(names, [u"valid.example.com"])
 
-    test_hostnameIsIndicated.skip = skipSNI
+    if skipSNI is not None:
+        test_hostnameIsIndicated.skip = skipSNI
 
 
     def test_hostnameEncoding(self):
@@ -1581,7 +1746,8 @@ class ServiceIdentityTests(unittest.SynchronousTestCase):
         self.assertIdentical(cErr, None)
         self.assertIdentical(sErr, None)
 
-    test_hostnameEncoding.skip = skipSNI
+    if skipSNI is not None:
+        test_hostnameEncoding.skip = skipSNI
 
 
     def test_fallback(self):
@@ -1631,9 +1797,206 @@ class ServiceIdentityTests(unittest.SynchronousTestCase):
         sErr = sProto.wrappedProtocol.lostReason.value
 
         self.assertIsInstance(cErr, ZeroDivisionError)
-        self.assertIsInstance(sErr, ConnectionClosed)
+        self.assertIsInstance(sErr, (ConnectionClosed, SSL.Error))
         errors = self.flushLoggedErrors(ZeroDivisionError)
         self.assertTrue(errors)
+
+
+
+def negotiateProtocol(serverProtocols,
+                      clientProtocols,
+                      clientOptions=None):
+    """
+    Create the TLS connection and negotiate a next protocol.
+
+    @param serverProtocols: The protocols the server is willing to negotiate.
+    @param clientProtocols: The protocols the client is willing to negotiate.
+    @param clientOptions: The type of C{OpenSSLCertificateOptions} class to
+        use for the client. Defaults to C{OpenSSLCertificateOptions}.
+    @return: A C{typle} of: the negotiated protocol and the reason the
+        connection was lost.
+    """
+    caCertificate, serverCertificate = certificatesForAuthorityAndServer()
+    trustRoot = sslverify.OpenSSLCertificateAuthorities([
+        caCertificate.original,
+    ])
+
+    sProto, cProto, pump = loopbackTLSConnectionInMemory(
+        trustRoot=trustRoot,
+        privateKey=serverCertificate.privateKey.original,
+        serverCertificate=serverCertificate.original,
+        clientProtocols=clientProtocols,
+        serverProtocols=serverProtocols,
+        clientOptions=clientOptions,
+    )
+    pump.flush()
+
+    return (cProto.negotiatedProtocol, cProto.wrappedProtocol.lostReason)
+
+
+
+class NPNOrALPNTests(unittest.TestCase):
+    """
+    NPN and ALPN protocol selection.
+
+    These tests only run on platforms that have a PyOpenSSL version >= 0.15,
+    and OpenSSL version 1.0.1 or later.
+    """
+    if skipSSL:
+        skip = skipSSL
+    elif skipNPN:
+        skip = skipNPN
+
+    def test_nextProtocolMechanismsNPNIsSupported(self):
+        """
+        When at least NPN is available on the platform, NPN is in the set of
+        supported negotiation protocols.
+        """
+        supportedProtocols = sslverify.protocolNegotiationMechanisms()
+        self.assertTrue(
+            sslverify.ProtocolNegotiationSupport.NPN in supportedProtocols
+        )
+
+
+    def test_NPNAndALPNSuccess(self):
+        """
+        When both ALPN and NPN are used, and both the client and server have
+        overlapping protocol choices, a protocol is successfully negotiated.
+        Further, the negotiated protocol is the first one in the list.
+        """
+        protocols = [b'h2', b'http/1.1']
+        negotiatedProtocol, lostReason = negotiateProtocol(
+            clientProtocols=protocols,
+            serverProtocols=protocols,
+        )
+        self.assertEqual(negotiatedProtocol, b'h2')
+        self.assertEqual(lostReason, None)
+
+
+    def test_NPNAndALPNDifferent(self):
+        """
+        Client and server have different protocol lists: only the common
+        element is chosen.
+        """
+        serverProtocols = [b'h2', b'http/1.1', b'spdy/2']
+        clientProtocols = [b'spdy/3', b'http/1.1']
+        negotiatedProtocol, lostReason = negotiateProtocol(
+            clientProtocols=clientProtocols,
+            serverProtocols=serverProtocols,
+        )
+        self.assertEqual(negotiatedProtocol, b'http/1.1')
+        self.assertEqual(lostReason, None)
+
+
+    def test_NPNAndALPNNoAdvertise(self):
+        """
+        When one peer does not advertise any protocols, the connection is set
+        up with no next protocol.
+        """
+        protocols = [b'h2', b'http/1.1']
+        negotiatedProtocol, lostReason = negotiateProtocol(
+            clientProtocols=protocols,
+            serverProtocols=[],
+        )
+        self.assertEqual(negotiatedProtocol, None)
+        self.assertEqual(lostReason, None)
+
+
+    def test_NPNAndALPNNoOverlap(self):
+        """
+        When the client and server have no overlap of protocols, the connection
+        fails.
+        """
+        clientProtocols = [b'h2', b'http/1.1']
+        serverProtocols = [b'spdy/3']
+        negotiatedProtocol, lostReason = negotiateProtocol(
+            serverProtocols=clientProtocols,
+            clientProtocols=serverProtocols,
+        )
+        self.assertEqual(negotiatedProtocol, None)
+        self.assertEqual(lostReason.type, SSL.Error)
+
+
+
+class ALPNTests(unittest.TestCase):
+    """
+    ALPN protocol selection.
+
+    These tests only run on platforms that have a PyOpenSSL version >= 0.15,
+    and OpenSSL version 1.0.2 or later.
+
+    This covers only the ALPN specific logic, as any platform that has ALPN
+    will also have NPN and so will run the NPNAndALPNTest suite as well.
+    """
+    if skipSSL:
+        skip = skipSSL
+    elif skipALPN:
+        skip = skipALPN
+
+
+    def test_nextProtocolMechanismsALPNIsSupported(self):
+        """
+        When ALPN is available on a platform, protocolNegotiationMechanisms
+        includes ALPN in the suported protocols.
+        """
+        supportedProtocols = sslverify.protocolNegotiationMechanisms()
+        self.assertTrue(
+            sslverify.ProtocolNegotiationSupport.ALPN in
+            supportedProtocols
+        )
+
+
+
+class NPNAndALPNAbsentTests(unittest.TestCase):
+    """
+    NPN/ALPN operations fail on platforms that do not support them.
+
+    These tests only run on platforms that have a PyOpenSSL version < 0.15,
+    or an OpenSSL version earlier than 1.0.1
+    """
+    if skipSSL:
+        skip = skipSSL
+    elif not skipNPN:
+        skip = "NPN/ALPN is present on this platform"
+
+
+    def test_nextProtocolMechanismsNoNegotiationSupported(self):
+        """
+        When neither NPN or ALPN are available on a platform, there are no
+        supported negotiation protocols.
+        """
+        supportedProtocols = sslverify.protocolNegotiationMechanisms()
+        self.assertFalse(supportedProtocols)
+
+
+    def test_NPNAndALPNNotImplemented(self):
+        """
+        A NotImplementedError is raised when using acceptableProtocols on a
+        platform that does not support either NPN or ALPN.
+        """
+        protocols = [b'h2', b'http/1.1']
+        self.assertRaises(
+            NotImplementedError,
+            negotiateProtocol,
+            serverProtocols=protocols,
+            clientProtocols=protocols,
+        )
+
+
+    def test_NegotiatedProtocolReturnsNone(self):
+        """
+        negotiatedProtocol return C{None} even when NPN/ALPN aren't supported.
+        This works because, as neither are supported, negotiation isn't even
+        attempted.
+        """
+        serverProtocols = None
+        clientProtocols = None
+        negotiatedProtocol, lostReason = negotiateProtocol(
+            clientProtocols=clientProtocols,
+            serverProtocols=serverProtocols,
+        )
+        self.assertEqual(negotiatedProtocol, None)
+        self.assertEqual(lostReason, None)
 
 
 
@@ -1667,7 +2030,7 @@ class _ActualSSLTransport:
 
 
 
-class Constructors(unittest.TestCase):
+class ConstructorsTests(unittest.TestCase):
     if skipSSL:
         skip = skipSSL
 
@@ -1679,7 +2042,7 @@ class Constructors(unittest.TestCase):
         x = self.assertRaises(CertificateError,
                               sslverify.Certificate.peerFromTransport,
                               _NotSSLTransport())
-        self.failUnless(str(x).startswith("non-TLS"))
+        self.assertTrue(str(x).startswith("non-TLS"))
 
 
     def test_peerFromBlankSSLTransport(self):
@@ -1690,7 +2053,7 @@ class Constructors(unittest.TestCase):
         x = self.assertRaises(CertificateError,
                               sslverify.Certificate.peerFromTransport,
                               _MaybeSSLTransport())
-        self.failUnless(str(x).startswith("TLS"))
+        self.assertTrue(str(x).startswith("TLS"))
 
 
     def test_hostFromNonSSLTransport(self):
@@ -1701,7 +2064,7 @@ class Constructors(unittest.TestCase):
         x = self.assertRaises(CertificateError,
                               sslverify.Certificate.hostFromTransport,
                               _NotSSLTransport())
-        self.failUnless(str(x).startswith("non-TLS"))
+        self.assertTrue(str(x).startswith("non-TLS"))
 
 
     def test_hostFromBlankSSLTransport(self):
@@ -1712,7 +2075,7 @@ class Constructors(unittest.TestCase):
         x = self.assertRaises(CertificateError,
                               sslverify.Certificate.hostFromTransport,
                               _MaybeSSLTransport())
-        self.failUnless(str(x).startswith("TLS"))
+        self.assertTrue(str(x).startswith("TLS"))
 
 
     def test_hostFromSSLTransport(self):
@@ -1738,7 +2101,141 @@ class Constructors(unittest.TestCase):
 
 
 
-class TestOpenSSLCipher(unittest.TestCase):
+class MultipleCertificateTrustRootTests(unittest.TestCase):
+    """
+    Test the behavior of the trustRootFromCertificates() API call.
+    """
+
+    if skipSSL:
+        skip = skipSSL
+
+
+    def test_trustRootFromCertificatesPrivatePublic(self):
+        """
+        L{trustRootFromCertificates} accepts either a L{sslverify.Certificate}
+        or a L{sslverify.PrivateCertificate} instance.
+        """
+        privateCert = sslverify.PrivateCertificate.loadPEM(A_KEYPAIR)
+        cert = sslverify.Certificate.loadPEM(A_HOST_CERTIFICATE_PEM)
+
+        mt = sslverify.trustRootFromCertificates([privateCert, cert])
+
+        # Verify that the returned object acts correctly when used as a
+        # trustRoot= param to optionsForClientTLS.
+        sProto, cProto, pump = loopbackTLSConnectionInMemory(
+            trustRoot=mt,
+            privateKey=privateCert.privateKey.original,
+            serverCertificate=privateCert.original,
+        )
+
+        # This connection should succeed
+        self.assertEqual(cProto.wrappedProtocol.data, b'greetings!')
+        self.assertEqual(cProto.wrappedProtocol.lostReason, None)
+
+
+    def test_trustRootSelfSignedServerCertificate(self):
+        """
+        L{trustRootFromCertificates} called with a single self-signed
+        certificate will cause L{optionsForClientTLS} to accept client
+        connections to a server with that certificate.
+        """
+        key, cert = makeCertificate(O=b"Server Test Certificate", CN=b"server")
+        selfSigned = sslverify.PrivateCertificate.fromCertificateAndKeyPair(
+            sslverify.Certificate(cert),
+            sslverify.KeyPair(key),
+        )
+
+        trust = sslverify.trustRootFromCertificates([selfSigned])
+
+        # Since we trust this exact certificate, connections to this server
+        # should succeed.
+        sProto, cProto, pump = loopbackTLSConnectionInMemory(
+            trustRoot=trust,
+            privateKey=selfSigned.privateKey.original,
+            serverCertificate=selfSigned.original,
+        )
+        self.assertEqual(cProto.wrappedProtocol.data, b'greetings!')
+        self.assertEqual(cProto.wrappedProtocol.lostReason, None)
+
+
+    def test_trustRootCertificateAuthorityTrustsConnection(self):
+        """
+        L{trustRootFromCertificates} called with certificate A will cause
+        L{optionsForClientTLS} to accept client connections to a server with
+        certificate B where B is signed by A.
+        """
+        caCert, serverCert = certificatesForAuthorityAndServer()
+
+        trust = sslverify.trustRootFromCertificates([caCert])
+
+        # Since we've listed the CA's certificate as a trusted cert, a
+        # connection to the server certificate it signed should succeed.
+        sProto, cProto, pump = loopbackTLSConnectionInMemory(
+            trustRoot=trust,
+            privateKey=serverCert.privateKey.original,
+            serverCertificate=serverCert.original,
+        )
+        self.assertEqual(cProto.wrappedProtocol.data, b'greetings!')
+        self.assertEqual(cProto.wrappedProtocol.lostReason, None)
+
+
+    def test_trustRootFromCertificatesUntrusted(self):
+        """
+        L{trustRootFromCertificates} called with certificate A will cause
+        L{optionsForClientTLS} to disallow any connections to a server with
+        certificate B where B is not signed by A.
+        """
+        key, cert = makeCertificate(O=b"Server Test Certificate", CN=b"server")
+        serverCert = sslverify.PrivateCertificate.fromCertificateAndKeyPair(
+            sslverify.Certificate(cert),
+            sslverify.KeyPair(key),
+        )
+        untrustedCert = sslverify.Certificate(
+            makeCertificate(O=b"CA Test Certificate", CN=b"unknown CA")[1]
+        )
+
+        trust = sslverify.trustRootFromCertificates([untrustedCert])
+
+        # Since we only trust 'untrustedCert' which has not signed our
+        # server's cert, we should reject this connection
+        sProto, cProto, pump = loopbackTLSConnectionInMemory(
+            trustRoot=trust,
+            privateKey=serverCert.privateKey.original,
+            serverCertificate=serverCert.original,
+        )
+
+        # This connection should fail, so no data was received.
+        self.assertEqual(cProto.wrappedProtocol.data, b'')
+
+        # It was an L{SSL.Error}.
+        self.assertEqual(cProto.wrappedProtocol.lostReason.type, SSL.Error)
+
+        # Some combination of OpenSSL and PyOpenSSL is bad at reporting errors.
+        err = cProto.wrappedProtocol.lostReason.value
+        self.assertEqual(err.args[0][0][2], 'tlsv1 alert unknown ca')
+
+
+    def test_trustRootFromCertificatesOpenSSLObjects(self):
+        """
+        L{trustRootFromCertificates} rejects any L{OpenSSL.crypto.X509}
+        instances in the list passed to it.
+        """
+        private = sslverify.PrivateCertificate.loadPEM(A_KEYPAIR)
+        certX509 = private.original
+
+        exception = self.assertRaises(
+            TypeError,
+            sslverify.trustRootFromCertificates, [certX509],
+        )
+        self.assertEqual(
+            "certificates items must be twisted.internet.ssl.CertBase "
+            "instances",
+            exception.args[0],
+        )
+
+
+
+class OpenSSLCipherTests(unittest.TestCase):
     """
     Tests for twisted.internet._sslverify.OpenSSLCipher.
     """
@@ -1792,7 +2289,7 @@ class TestOpenSSLCipher(unittest.TestCase):
 
 
 
-class TestExpandCipherString(unittest.TestCase):
+class ExpandCipherStringTests(unittest.TestCase):
     """
     Tests for twisted.internet._sslverify._expandCipherString.
     """
@@ -1843,7 +2340,7 @@ class TestExpandCipherString(unittest.TestCase):
 
 
 
-class TestAcceptableCiphers(unittest.TestCase):
+class AcceptableCiphersTests(unittest.TestCase):
     """
     Tests for twisted.internet._sslverify.OpenSSLAcceptableCiphers.
     """
@@ -1884,7 +2381,7 @@ class TestAcceptableCiphers(unittest.TestCase):
 
 
 
-class TestDiffieHellmanParameters(unittest.TestCase):
+class DiffieHellmanParametersTests(unittest.TestCase):
     """
     Tests for twisted.internet._sslverify.OpenSSLDHParameters.
     """
@@ -1996,7 +2493,7 @@ class FakeLib(object):
 
 
 
-class TestFakeLib(unittest.TestCase):
+class FakeLibTests(unittest.TestCase):
     """
     Tests for FakeLib
     """
@@ -2069,7 +2566,7 @@ class FakeBinding(object):
 
 
 
-class TestECCurve(unittest.TestCase):
+class ECCurveTests(unittest.TestCase):
     """
     Tests for twisted.internet._sslverify.OpenSSLECCurve.
     """
@@ -2151,3 +2648,249 @@ class TestECCurve(unittest.TestCase):
         ctx._context = None
         curve.addECKeyToContext(ctx)
         self.assertEqual(set(), lib._createdKeys)
+
+
+
+class KeyPairTests(unittest.TestCase):
+    """
+    Tests for L{sslverify.KeyPair}.
+    """
+    if skipSSL:
+        skip = skipSSL
+
+    def setUp(self):
+        """
+        Create test certificate.
+        """
+        self.sKey = makeCertificate(
+            O=b"Server Test Certificate",
+            CN=b"server")[0]
+
+
+    def test_getstateDeprecation(self):
+        """
+        L{sslverify.KeyPair.__getstate__} is deprecated.
+        """
+        self.callDeprecated(
+            (Version("Twisted", 15, 0, 0), "a real persistence system"),
+            sslverify.KeyPair(self.sKey).__getstate__)
+
+
+    def test_setstateDeprecation(self):
+        """
+        {sslverify.KeyPair.__setstate__} is deprecated.
+        """
+        state = sslverify.KeyPair(self.sKey).dump()
+        self.callDeprecated(
+            (Version("Twisted", 15, 0, 0), "a real persistence system"),
+            sslverify.KeyPair(self.sKey).__setstate__, state)
+
+
+
+class OpenSSLVersionTestsMixin(object):
+    """
+    A mixin defining tests relating to the version declaration interface of
+    I{pyOpenSSL}.
+
+    This is used to verify that the fake I{OpenSSL} module presents its fake
+    version information in the same way as the real L{OpenSSL} module.
+    """
+    def test_string(self):
+        """
+        C{OpenSSL.__version__} is a native string.
+        """
+        self.assertIsInstance(self.OpenSSL.__version__, str)
+
+
+    def test_majorDotMinor(self):
+        """
+        C{OpenSSL.__version__} declares the major and minor versions as
+        non-negative integers separated by C{"."}.
+        """
+        parts = self.OpenSSL.__version__.split(".")
+        major = int(parts[0])
+        minor = int(parts[1])
+        self.assertEqual(
+            (True, True),
+            (major >= 0, minor >= 0))
+
+
+
+class RealOpenSSLTests(OpenSSLVersionTestsMixin, unittest.SynchronousTestCase):
+    """
+    Apply the pyOpenSSL version tests to the real C{OpenSSL} package.
+    """
+    if skipSSL is None:
+        OpenSSL = OpenSSL
+    else:
+        skip = skipSSL
+
+
+
+class PreTwelveDummyOpenSSLTests(OpenSSLVersionTestsMixin,
+                                 unittest.SynchronousTestCase):
+    """
+    Apply the pyOpenSSL version tests to an instance of L{DummyOpenSSL} that
+    pretends to be older than 0.12.
+    """
+    OpenSSL = _preTwelveOpenSSL
+
+
+
+class PostTwelveDummyOpenSSLTests(OpenSSLVersionTestsMixin,
+                                  unittest.SynchronousTestCase):
+    """
+    Apply the pyOpenSSL version tests to an instance of L{DummyOpenSSL} that
+    pretends to be newer than 0.12.
+    """
+    OpenSSL = _postTwelveOpenSSL
+
+
+
+class UsablePyOpenSSLTests(unittest.SynchronousTestCase):
+    """
+    Tests for L{UsablePyOpenSSLTests}.
+    """
+    if skipSSL is not None:
+        skip = skipSSL
+
+    def test_ok(self):
+        """
+        Return C{True} for usable versions including possible changes in
+        versioning.
+        """
+        for version in ["0.15.1", "1.0.0", "16.0.0"]:
+            self.assertTrue(sslverify._usablePyOpenSSL(version))
+
+    def test_tooOld(self):
+        """
+        Return C{False} for unusable versions.
+        """
+        self.assertFalse(sslverify._usablePyOpenSSL("0.11.1"))
+
+    def test_inDev(self):
+        """
+        A .dev0 suffix does not trip us up.  Since it has been introduced after
+        0.15.1, it's always C{True}.
+        """
+        for version in ["0.16.0", "1.0.0", "16.0.0"]:
+            self.assertTrue(sslverify._usablePyOpenSSL(version + ".dev0"))
+
+
+
+class SelectVerifyImplementationTests(unittest.SynchronousTestCase):
+    """
+    Tests for L{_selectVerifyImplementation}.
+    """
+    if skipSSL is not None:
+        skip = skipSSL
+
+    def test_pyOpenSSLTooOld(self):
+        """
+        If the version of I{pyOpenSSL} installed is older than 0.12 then
+        L{_selectVerifyImplementation} returns L{simpleVerifyHostname} and
+        L{SimpleVerificationError}.
+        """
+        result = sslverify._selectVerifyImplementation(_preTwelveOpenSSL)
+        expected = (
+            sslverify.simpleVerifyHostname, sslverify.SimpleVerificationError)
+        self.assertEqual(expected, result)
+    test_pyOpenSSLTooOld.suppress = [
+        util.suppress(
+            message="Your version of pyOpenSSL, 0.11, is out of date."),
+        ]
+
+
+    def test_pyOpenSSLTooOldWarning(self):
+        """
+        If the version of I{pyOpenSSL} installed is older than 0.12 then
+        L{_selectVerifyImplementation} emits a L{UserWarning} advising the user
+        to upgrade.
+        """
+        sslverify._selectVerifyImplementation(_preTwelveOpenSSL)
+        [warning] = list(
+            warning
+            for warning
+            in self.flushWarnings()
+            if warning["category"] == UserWarning)
+
+        expectedMessage = (
+            "Your version of pyOpenSSL, 0.11, is out of date.  Please upgrade "
+            "to at least 0.12 and install service_identity from "
+            "<https://pypi.python.org/pypi/service_identity>.  Without the "
+            "service_identity module and a recent enough pyOpenSSL to support "
+            "it, Twisted can perform only rudimentary TLS client hostname "
+            "verification.  Many valid certificate/hostname mappings may be "
+            "rejected.")
+
+        self.assertEqual(
+            (warning["message"], warning["filename"], warning["lineno"]),
+            # Make sure we're abusing the warning system to a sufficient
+            # degree: there is no filename or line number that makes sense for
+            # this warning to "blame" for the problem.  It is a system
+            # misconfiguration.  So the location information should be blank
+            # (or as blank as we can make it).
+            (expectedMessage, "", 0))
+
+
+    def test_dependencyMissing(self):
+        """
+        If I{service_identity} cannot be imported then
+        L{_selectVerifyImplementation} returns L{simpleVerifyHostname} and
+        L{SimpleVerificationError}.
+        """
+        with SetAsideModule("service_identity"):
+            sys.modules["service_identity"] = None
+
+            result = sslverify._selectVerifyImplementation(_postTwelveOpenSSL)
+            expected = (
+                sslverify.simpleVerifyHostname,
+                sslverify.SimpleVerificationError)
+            self.assertEqual(expected, result)
+    test_dependencyMissing.suppress = [
+        util.suppress(
+            message=(
+                "You do not have a working installation of the "
+                "service_identity module"),
+            ),
+        ]
+
+
+    def test_dependencyMissingWarning(self):
+        """
+        If I{service_identity} cannot be imported then
+        L{_selectVerifyImplementation} emits a L{UserWarning} advising the user
+        of the exact error.
+        """
+        with SetAsideModule("service_identity"):
+            sys.modules["service_identity"] = None
+
+            sslverify._selectVerifyImplementation(_postTwelveOpenSSL)
+
+        [warning] = list(
+            warning
+            for warning
+            in self.flushWarnings()
+            if warning["category"] == UserWarning)
+
+        if _PY3:
+            importError = (
+                "'import of 'service_identity' halted; None in sys.modules'")
+        else:
+            importError = "'No module named service_identity'"
+
+        expectedMessage = (
+            "You do not have a working installation of the "
+            "service_identity module: {message}.  Please install it from "
+            "<https://pypi.python.org/pypi/service_identity> "
+            "and make sure all of its dependencies are satisfied.  "
+            "Without the service_identity module and a recent enough "
+            "pyOpenSSL to support it, Twisted can perform only "
+            "rudimentary TLS client hostname verification.  Many valid "
+            "certificate/hostname mappings may be rejected.").format(
+                message=importError)
+
+        self.assertEqual(
+            (warning["message"], warning["filename"], warning["lineno"]),
+            # See the comment in test_pyOpenSSLTooOldWarning.
+            (expectedMessage, "", 0))

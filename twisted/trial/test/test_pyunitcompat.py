@@ -8,7 +8,6 @@ import traceback
 
 from zope.interface import implementer
 
-from twisted.python.compat import _PY3
 from twisted.python.failure import Failure
 from twisted.trial.unittest import SynchronousTestCase, PyUnitResultAdapter
 from twisted.trial.itrial import IReporter, ITestCase
@@ -16,7 +15,7 @@ from twisted.trial.itrial import IReporter, ITestCase
 import unittest as pyunit
 
 
-class TestPyUnitTestCase(SynchronousTestCase):
+class PyUnitTestTests(SynchronousTestCase):
 
     class PyUnitTest(pyunit.TestCase):
 
@@ -36,13 +35,9 @@ class TestPyUnitTestCase(SynchronousTestCase):
         self.assertTrue(callable(self.test),
                         "%r is not callable." % (self.test,))
 
-# Remove this when we port twisted.trial._synctest to Python 3:
-if _PY3:
-    del TestPyUnitTestCase
 
 
-
-class TestPyUnitResult(SynchronousTestCase):
+class PyUnitResultTests(SynchronousTestCase):
     """
     Tests to show that PyUnitResultAdapter wraps TestResult objects from the
     standard library 'unittest' module in such a way as to make them usable and
@@ -116,9 +111,9 @@ class TestPyUnitResult(SynchronousTestCase):
         result = pyunit.TestResult()
         test.run(result)
 
-        self.failUnless(test.ran)
+        self.assertTrue(test.ran)
         self.assertEqual(1, result.testsRun)
-        self.failUnless(result.wasSuccessful())
+        self.assertTrue(result.wasSuccessful())
 
     def test_failure(self):
         class FailureTest(SynchronousTestCase):
@@ -130,20 +125,20 @@ class TestPyUnitResult(SynchronousTestCase):
         result = pyunit.TestResult()
         test.run(result)
 
-        self.failUnless(test.ran)
+        self.assertTrue(test.ran)
         self.assertEqual(1, result.testsRun)
         self.assertEqual(1, len(result.failures))
-        self.failIf(result.wasSuccessful())
+        self.assertFalse(result.wasSuccessful())
 
     def test_error(self):
         test = self.ErrorTest('test_foo')
         result = pyunit.TestResult()
         test.run(result)
 
-        self.failUnless(test.ran)
+        self.assertTrue(test.ran)
         self.assertEqual(1, result.testsRun)
         self.assertEqual(1, len(result.errors))
-        self.failIf(result.wasSuccessful())
+        self.assertFalse(result.wasSuccessful())
 
     def test_setUpError(self):
         class ErrorTest(SynchronousTestCase):
@@ -156,10 +151,10 @@ class TestPyUnitResult(SynchronousTestCase):
         result = pyunit.TestResult()
         test.run(result)
 
-        self.failIf(test.ran)
+        self.assertFalse(test.ran)
         self.assertEqual(1, result.testsRun)
         self.assertEqual(1, len(result.errors))
-        self.failIf(result.wasSuccessful())
+        self.assertFalse(result.wasSuccessful())
 
     def test_tracebackFromFailure(self):
         """
@@ -198,7 +193,7 @@ class TestPyUnitResult(SynchronousTestCase):
         # machinery inserts a few extra frames on the top and we don't really
         # want to trim them off without an extremely good reason.
         #
-        # So, we just test that the result's stack ends with the the
+        # So, we just test that the result's stack ends with the
         # exception's stack.
 
         expected_stack = ''.join(traceback.format_tb(test.exc_info[2]))
@@ -284,4 +279,3 @@ class TestPyUnitResult(SynchronousTestCase):
         del message
     else:
         test_skip26.skip = "This test is only relevant to Python 2.6"
-

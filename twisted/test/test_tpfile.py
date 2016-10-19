@@ -24,7 +24,7 @@ class FileSendingClient(protocol.Protocol):
         d = s.beginFileTransfer(self.f, self.transport, lambda x: x)
         d.addCallback(lambda r: self.transport.loseConnection())
 
-class FileSenderTestCase(unittest.TestCase):
+class FileSenderTests(unittest.TestCase):
     def testSendingFile(self):
         testStr = 'xyz' * 100 + 'abc' * 100 + '123' * 100
         s = BufferingServer()
@@ -47,6 +47,6 @@ class FileSenderTestCase(unittest.TestCase):
         self.assertEqual(consumer.producer, None)
 
         # Which means the Deferred from FileSender should have been called
-        self.failUnless(d.called, 
+        self.assertTrue(d.called, 
                         'producer unregistered with deferred being called')
 

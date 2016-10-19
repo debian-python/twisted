@@ -9,16 +9,16 @@ Component architecture for Twisted, based on Zope3 components.
 Using the Zope3 API directly is strongly recommended. Everything
 you need is in the top-level of the zope.interface package, e.g.::
 
-   from zope.interface import Interface, implements
+   from zope.interface import Interface, implementer
 
    class IFoo(Interface):
        pass
 
+   @implementer(IFoo)
    class Foo:
-       implements(IFoo)
 
-   print IFoo.implementedBy(Foo) # True
-   print IFoo.providedBy(Foo()) # True
+   print(IFoo.implementedBy(Foo)) # True
+   print(IFoo.providedBy(Foo())) # True
 
 L{twisted.python.components.registerAdapter} from this module may be used to
 add to Twisted's global adapter registry.
@@ -28,7 +28,7 @@ which allow access to only the parts of another class defined by a specified
 interface.
 """
 
-from __future__ import division, absolute_import
+from __future__ import division, absolute_import, print_function
 
 # zope3 imports
 from zope.interface import interface, declarations
@@ -363,14 +363,18 @@ class _ProxiedClassMethod(object):
 
     @ivar methodName: the name of the method which this should invoke when
         called.
-    @type methodName: C{str}
+    @type methodName: L{str}
+
+    @ivar __name__: The name of the method being proxied (the same as
+        C{methodName}).
+    @type __name__: L{str}
 
     @ivar originalAttribute: name of the attribute of the proxy where the
         original object is stored.
-    @type orginalAttribute: C{str}
+    @type orginalAttribute: L{str}
     """
     def __init__(self, methodName, originalAttribute):
-        self.methodName = methodName
+        self.methodName = self.__name__ = methodName
         self.originalAttribute = originalAttribute
 
 

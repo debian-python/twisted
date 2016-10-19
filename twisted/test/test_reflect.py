@@ -18,7 +18,6 @@ from twisted.python import reflect
 from twisted.python.reflect import (
     accumulateMethods, prefixedMethods, prefixedMethodNames,
     addMethodNamesToDict, fullyQualifiedName)
-from twisted.python.versions import Version
 
 
 class Base(object):
@@ -177,7 +176,7 @@ class AddMethodNamesToDictTests(TestCase):
 
 class Summer(object):
     """
-    A class we look up as part of the LookupsTestCase.
+    A class we look up as part of the LookupsTests.
     """
 
     def reallySet(self):
@@ -187,7 +186,7 @@ class Summer(object):
 
 
 
-class LookupsTestCase(TestCase):
+class LookupsTests(TestCase):
     """
     Tests for L{namedClass}, L{namedModule}, and L{namedAny}.
     """
@@ -243,7 +242,7 @@ class LookupsTestCase(TestCase):
         L{namedAny} should return the object an attribute of a non-module,
         non-package object is bound to for the name it is passed.
         """
-        # Note - not assertEqual because unbound method lookup creates a new
+        # Note - not assertIs because unbound method lookup creates a new
         # object every time.  This is a foolishness of Python's object
         # implementation, not a bug in Twisted.
         self.assertEqual(
@@ -424,7 +423,7 @@ class NoClassAttr(Breakable):
 
 
 
-class SafeRepr(TestCase):
+class SafeReprTests(TestCase):
     """
     Tests for L{reflect.safe_repr} function.
     """
@@ -434,8 +433,8 @@ class SafeRepr(TestCase):
         L{reflect.safe_repr} produces the same output as C{repr} on a working
         object.
         """
-        x = [1, 2, 3]
-        self.assertEqual(reflect.safe_repr(x), repr(x))
+        xs = ([1, 2, 3], b'a')
+        self.assertEqual(list(map(reflect.safe_repr, xs)), list(map(repr, xs)))
 
 
     def test_brokenRepr(self):
@@ -521,7 +520,7 @@ class SafeRepr(TestCase):
 
 
 
-class SafeStr(TestCase):
+class SafeStrTests(TestCase):
     """
     Tests for L{reflect.safe_str} function.
     """
@@ -535,6 +534,52 @@ class SafeStr(TestCase):
         b = Breakable()
         b.breakStr = True
         reflect.safe_str(b)
+
+
+    def test_workingAscii(self):
+        """
+        L{safe_str} for C{str} with ascii-only data should return the
+        value unchanged.
+        """
+        x = 'a'
+        self.assertEqual(reflect.safe_str(x), 'a')
+
+
+    def test_workingUtf8_2(self):
+        """
+        L{safe_str} for C{str} with utf-8 encoded data should return the
+        value unchanged.
+        """
+        x = b't\xc3\xbcst'
+        self.assertEqual(reflect.safe_str(x), x)
+
+
+    def test_workingUtf8_3(self):
+        """
+        L{safe_str} for C{bytes} with utf-8 encoded data should return
+        the value decoded into C{str}.
+        """
+        x = b't\xc3\xbcst'
+        self.assertEqual(reflect.safe_str(x), x.decode('utf-8'))
+
+    if _PY3:
+        # TODO: after something like python.compat.nativeUtf8String is
+        # introduced, use that one for assertEqual. Then we can combine
+        # test_workingUtf8_* tests into one without needing _PY3.
+        # nativeUtf8String is needed for Python 3 anyway.
+        test_workingUtf8_2.skip = ("Skip Python 2 specific test for utf-8 str")
+    else:
+        test_workingUtf8_3.skip = (
+            "Skip Python 3 specific test for utf-8 bytes")
+
+
+    def test_brokenUtf8(self):
+        """
+        Use str() for non-utf8 bytes: "b'non-utf8'"
+        """
+        x = b'\xff'
+        xStr = reflect.safe_str(x)
+        self.assertEqual(xStr, str(x))
 
 
     def test_brokenRepr(self):
@@ -586,7 +631,7 @@ class SafeStr(TestCase):
 
 
 
-class FilenameToModule(TestCase):
+class FilenameToModuleTests(TestCase):
     """
     Test L{filenameToModuleName} detection.
     """
@@ -660,7 +705,7 @@ class FullyQualifiedNameTests(TestCase):
 
     def test_module(self):
         """
-        L{fullyQualifiedName} returns the name of a module inside a a package.
+        L{fullyQualifiedName} returns the name of a module inside a package.
         """
         import twisted.python.compat
         self._checkFullyQualifiedName(
@@ -704,7 +749,7 @@ class FullyQualifiedNameTests(TestCase):
             "%s.%s.test_unboundMethod" % (__name__, self.__class__.__name__))
 
 
-class ObjectGrep(unittest.TestCase):
+class ObjectGrepTests(unittest.TestCase):
     if _PY3:
         # This is to be removed when fixing #6986
         skip = "twisted.python.reflect.objgrep hasn't been ported to Python 3"
@@ -826,75 +871,22 @@ class ObjectGrep(unittest.TestCase):
         self.assertIn("[1]", reflect.objgrep(D, o, reflect.isSame))
 
 
-class GetClass(unittest.TestCase):
+class GetClassTests(unittest.TestCase):
     if _PY3:
         oldClassNames = ['type']
     else:
         oldClassNames = ['class', 'classobj']
 
-    def testOld(self):
+    def test_old(self):
         class OldClass:
             pass
         old = OldClass()
         self.assertIn(reflect.getClass(OldClass).__name__, self.oldClassNames)
         self.assertEqual(reflect.getClass(old).__name__, 'OldClass')
 
-    def testNew(self):
+    def test_new(self):
         class NewClass(object):
             pass
         new = NewClass()
         self.assertEqual(reflect.getClass(NewClass).__name__, 'type')
         self.assertEqual(reflect.getClass(new).__name__, 'NewClass')
-
-
-if not _PY3:
-    # The functions tested below are deprecated but still used by external
-    # projects like Nevow 0.10. They are not going to be ported to Python 3
-    # (hence the condition above) and will be removed as soon as no project used
-    # by Twisted will depend on these functions. Also, have a look at the
-    # comments related to those functions in twisted.python.reflect.
-    class DeprecationTestCase(unittest.TestCase):
-        """
-        Test deprecations in twisted.python.reflect
-        """
-
-        def test_allYourBase(self):
-            """
-            Test deprecation of L{reflect.allYourBase}. See #5481 for removal.
-            """
-            self.callDeprecated(
-                (Version("Twisted", 11, 0, 0), "inspect.getmro"),
-                reflect.allYourBase, DeprecationTestCase)
-
-
-        def test_accumulateBases(self):
-            """
-            Test deprecation of L{reflect.accumulateBases}. See #5481 for removal.
-            """
-            l = []
-            self.callDeprecated(
-                (Version("Twisted", 11, 0, 0), "inspect.getmro"),
-                reflect.accumulateBases, DeprecationTestCase, l, None)
-
-
-        def test_getcurrent(self):
-            """
-            Test deprecation of L{reflect.getcurrent}.
-            """
-
-            class C:
-                pass
-
-            self.callDeprecated(
-                Version("Twisted", 14, 0, 0),
-                reflect.getcurrent, C)
-
-
-        def test_isinst(self):
-            """
-            Test deprecation of L{reflect.isinst}.
-            """
-
-            self.callDeprecated(
-                (Version("Twisted", 14, 0, 0), "isinstance"),
-                reflect.isinst, object(), object)

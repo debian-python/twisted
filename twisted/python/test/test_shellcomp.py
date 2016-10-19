@@ -73,16 +73,16 @@ def test_genZshFunction(self, cmdName, optionsFQPN):
     self.patch(usage.Options, '_shellCompFile', outputFile)
 
     # some scripts won't import or instantiate because of missing
-    # dependencies (PyCrypto, etc) so we have to skip them.
+    # dependencies (pyOpenSSL, etc) so we have to skip them.
     try:
         o = reflect.namedAny(optionsFQPN)()
-    except Exception, e:
+    except Exception as e:
         raise unittest.SkipTest("Couldn't import or instantiate "
                                 "Options class: %s" % (e,))
 
     try:
         o.parseOptions(["", "--_shell-completion", "zsh:2"])
-    except ImportError, e:
+    except ImportError as e:
         # this can happen for commands which don't have all
         # the necessary dependencies installed. skip test.
         # skip
@@ -103,7 +103,7 @@ def test_genZshFunction(self, cmdName, optionsFQPN):
             try:
                 o.parseOptions([cmd, "", "--_shell-completion",
                                 "zsh:3"])
-            except ImportError, e:
+            except ImportError as e:
                 # this can happen for commands which don't have all
                 # the necessary dependencies installed. skip test.
                 raise unittest.SkipTest("ImportError calling parseOptions() "
@@ -125,7 +125,7 @@ def test_genZshFunction(self, cmdName, optionsFQPN):
 
 
 
-class ZshTestCase(unittest.TestCase):
+class ZshTests(unittest.TestCase):
     """
     Tests for zsh completion code
     """
@@ -275,7 +275,7 @@ class ZshTestCase(unittest.TestCase):
         Completion still happens even if a command-line is given
         that would normally throw UsageError.
 
-        The existance of --unknown-option prior to the subcommand
+        The existence of --unknown-option prior to the subcommand
         will break subcommand detection... but we complete anyway
         """
         outputFile = StringIO()
@@ -384,7 +384,7 @@ class ZshTestCase(unittest.TestCase):
 
 
 
-class EscapeTestCase(unittest.TestCase):
+class EscapeTests(unittest.TestCase):
     def test_escape(self):
         """
         Verify _shellcomp.escape() function
@@ -399,7 +399,7 @@ class EscapeTestCase(unittest.TestCase):
 
 
 
-class CompleterNotImplementedTestCase(unittest.TestCase):
+class CompleterNotImplementedTests(unittest.TestCase):
     """
     Test that using an unknown shell constant with SubcommandAction
     raises NotImplementedError

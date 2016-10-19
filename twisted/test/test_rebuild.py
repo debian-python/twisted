@@ -36,7 +36,7 @@ unhashableObject = None # set in test_hashException
 
 
 
-class RebuildTestCase(unittest.TestCase):
+class RebuildTests(unittest.TestCase):
     """
     Simple testcase for rebuilding, to at least exercise the code.
     """
@@ -68,7 +68,7 @@ class RebuildTestCase(unittest.TestCase):
             class C(myrebuilder.B):
                 pass
             test_rebuild.C = C
-            c = C()
+            C()
         i = myrebuilder.Inherit()
         self.assertEqual(a.a(), 'a')
         # necessary because the file has not "changed" if a second has not gone
@@ -111,7 +111,7 @@ class RebuildTestCase(unittest.TestCase):
     def testComponentInteraction(self):
         x = crash_test_dummy.XComponent()
         x.setAdapter(crash_test_dummy.IX, crash_test_dummy.XA)
-        oldComponent = x.getComponent(crash_test_dummy.IX)
+        x.getComponent(crash_test_dummy.IX)
         rebuild.rebuild(crash_test_dummy, 0)
         newComponent = x.getComponent(crash_test_dummy.IX)
 
@@ -162,7 +162,7 @@ class RebuildTestCase(unittest.TestCase):
 
 
 
-class NewStyleTestCase(unittest.TestCase):
+class NewStyleTests(unittest.TestCase):
     """
     Tests for rebuilding new-style classes of various sorts.
     """
@@ -184,34 +184,13 @@ class NewStyleTestCase(unittest.TestCase):
             "class SlottedClass(object):\n"
             "    __slots__ = ['a']\n")
 
-        exec classDefinition in self.m.__dict__
+        exec(classDefinition, self.m.__dict__)
         inst = self.m.SlottedClass()
         inst.a = 7
-        exec classDefinition in self.m.__dict__
+        exec(classDefinition, self.m.__dict__)
         rebuild.updateInstance(inst)
         self.assertEqual(inst.a, 7)
         self.assertIdentical(type(inst), self.m.SlottedClass)
-
-    if sys.version_info < (2, 6):
-        test_slots.skip = "__class__ assignment for class with slots is only available starting Python 2.6"
-
-
-    def test_errorSlots(self):
-        """
-        Try to rebuild a new style class with slots defined: this should fail.
-        """
-        classDefinition = (
-            "class SlottedClass(object):\n"
-            "    __slots__ = ['a']\n")
-
-        exec classDefinition in self.m.__dict__
-        inst = self.m.SlottedClass()
-        inst.a = 7
-        exec classDefinition in self.m.__dict__
-        self.assertRaises(rebuild.RebuildError, rebuild.updateInstance, inst)
-
-    if sys.version_info >= (2, 6):
-        test_errorSlots.skip = "__class__ assignment for class with slots should work starting Python 2.6"
 
 
     def test_typeSubclass(self):
@@ -222,10 +201,10 @@ class NewStyleTestCase(unittest.TestCase):
             "class ListSubclass(list):\n"
             "    pass\n")
 
-        exec classDefinition in self.m.__dict__
+        exec(classDefinition, self.m.__dict__)
         inst = self.m.ListSubclass()
         inst.append(2)
-        exec classDefinition in self.m.__dict__
+        exec(classDefinition, self.m.__dict__)
         rebuild.updateInstance(inst)
         self.assertEqual(inst[0], 2)
         self.assertIdentical(type(inst), self.m.ListSubclass)
@@ -240,13 +219,12 @@ class NewStyleTestCase(unittest.TestCase):
             "class NotSlottedClass(object):\n"
             "    pass\n")
 
-        exec classDefinition in self.m.__dict__
+        exec(classDefinition, self.m.__dict__)
         inst = self.m.NotSlottedClass()
         inst.__slots__ = ['a']
         classDefinition = (
             "class NotSlottedClass:\n"
             "    pass\n")
-        exec classDefinition in self.m.__dict__
+        exec(classDefinition, self.m.__dict__)
         # Moving from new-style class to old-style should fail.
         self.assertRaises(TypeError, rebuild.updateInstance, inst)
-

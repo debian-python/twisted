@@ -6,7 +6,10 @@
 Implementation module for the `tkconch` command.
 """
 
-import Tkinter, tkFileDialog, tkFont, tkMessageBox, string
+from __future__ import print_function
+
+import Tkinter, tkFileDialog, tkMessageBox
+from twisted.conch import error
 from twisted.conch.ui import tkvt100
 from twisted.conch.ssh import transport, userauth, connection, common, keys
 from twisted.conch.ssh import session, forwarding, channel
@@ -196,7 +199,7 @@ class GeneralOptions(usage.Options):
                 ['noshell', 'N', 'Do not execute a shell or command.'],
                 ['subsystem', 's', 'Invoke command (mandatory) as SSH2 subsystem.'],
                 ['log', 'v', 'Log to stderr'],
-                ['ansilog', 'a', 'Print the receieved data to stdout']]
+                ['ansilog', 'a', 'Print the received data to stdout']]
 
     _ciphers = transport.SSHClientTransport.supportedCiphers
     _macs = transport.SSHClientTransport.supportedMACs
@@ -299,8 +302,8 @@ def run():
     options = GeneralOptions()
     try:
         options.parseOptions(args)
-    except usage.UsageError, u:
-        print 'ERROR: %s' % u
+    except usage.UsageError as u:
+        print('ERROR: %s' % u)
         options.opt_help()
         sys.exit(1)
     for k,v in options.items():
@@ -440,7 +443,7 @@ class SSHUserAuthClient(userauth.SSHUserAuthClient):
             return None
         try:
             return defer.succeed(keys.Key.fromFile(file).keyObject)
-        except keys.BadKeyError, e:
+        except keys.BadKeyError as e:
             if e.args[0] == 'encrypted key with no password':
                 prompt = "Enter passphrase for key '%s': " % \
                        self.usedFiles[-1]
@@ -472,7 +475,7 @@ class SSHConnection(connection.SSHConnection):
                         (remotePort, hostport))
                 data = forwarding.packGlobal_tcpip_forward(
                     ('0.0.0.0', remotePort))
-                d = self.sendGlobalRequest('tcpip-forward', data)
+                self.sendGlobalRequest('tcpip-forward', data)
                 self.remoteForwards[remotePort] = hostport
 
 class SSHSession(channel.SSHChannel):
@@ -542,7 +545,7 @@ class SSHSession(channel.SSHChannel):
 
     def dataReceived(self, data):
         if options['ansilog']:
-            print repr(data)
+            print(repr(data))
         frame.write(data)
 
     def extReceived(self, t, data):

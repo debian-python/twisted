@@ -52,18 +52,14 @@ with wxPython, or the PyObjCTools.AppHelper.stopEventLoop function.
 
 from threading import Thread
 from Queue import Queue, Empty
-from time import sleep
 import sys
 
-from zope.interface import implements
+from zope.interface import implementer
 
 from twisted.internet.interfaces import IReactorFDSet
-from twisted.internet import error
 from twisted.internet import posixbase
 from twisted.internet.posixbase import _NO_FILENO, _NO_FILEDESC
 from twisted.python import log, failure, threadable
-from twisted.persisted import styles
-from twisted.python.runtime import platformType
 
 import select
 from errno import EINTR, EBADF
@@ -79,11 +75,13 @@ def dictRemove(dct, value):
 def raiseException(e):
     raise e
 
+
+
+@implementer(IReactorFDSet)
 class ThreadedSelectReactor(posixbase.PosixReactorBase):
     """A threaded select() based reactor - runs on all POSIX platforms and on
     Win32.
     """
-    implements(IReactorFDSet)
 
     def __init__(self):
         threadable.init(1)
@@ -157,16 +155,16 @@ class ThreadedSelectReactor(posixbase.PosixReactorBase):
                                         writes.keys(),
                                         [], timeout)
                 break
-            except ValueError, ve:
+            except ValueError:
                 # Possibly a file descriptor has gone negative?
                 log.err()
                 self._preenDescriptorsInThread()
-            except TypeError, te:
+            except TypeError:
                 # Something *totally* invalid (object w/o fileno, non-integral
                 # result) was passed
                 log.err()
                 self._preenDescriptorsInThread()
-            except (select.error, IOError), se:
+            except (select.error, IOError) as se:
                 # select(2) encountered an error
                 if se.args[0] in (0, 2):
                     # windows does this if it got an empty list

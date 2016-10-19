@@ -110,7 +110,7 @@ class _ConstantsTestsMixin(object):
 
         @param container: A L{_ConstantsContainer} subclass which will be
             tested.
-        @param constantName: The name of one of the constants which is an an
+        @param constantName: The name of one of the constants which is an
             attribute of C{container}.
         """
         first = container._enumerants
@@ -127,7 +127,7 @@ class _ConstantsTestsMixin(object):
 class NamesTests(TestCase, _ConstantsTestsMixin):
     """
     Tests for L{twisted.python.constants.Names}, a base class for containers of
-    related constaints.
+    related constraints.
     """
     def setUp(self):
         """
@@ -310,7 +310,7 @@ class NamesTests(TestCase, _ConstantsTestsMixin):
 class ValuesTests(TestCase, _ConstantsTestsMixin):
     """
     Tests for L{twisted.python.constants.Names}, a base class for containers of
-    related constaints with arbitrary values.
+    related constraints with arbitrary values.
     """
     def setUp(self):
         """
@@ -1000,7 +1000,7 @@ class OrderedConstantsTests(TestCase):
         L{twisted.python.constants._Constant.__lt__} returns C{NotImplemented}
         when comparing constants of different types.
         """
-        self.assertEquals(
+        self.assertEqual(
             NotImplemented,
             NamedLetters.alpha.__lt__(ValuedLetters.alpha)
         )
@@ -1011,7 +1011,7 @@ class OrderedConstantsTests(TestCase):
         L{twisted.python.constants._Constant.__le__} returns C{NotImplemented}
         when comparing constants of different types.
         """
-        self.assertEquals(
+        self.assertEqual(
             NotImplemented,
             NamedLetters.alpha.__le__(ValuedLetters.alpha)
         )
@@ -1022,7 +1022,7 @@ class OrderedConstantsTests(TestCase):
         L{twisted.python.constants._Constant.__gt__} returns C{NotImplemented}
         when comparing constants of different types.
         """
-        self.assertEquals(
+        self.assertEqual(
             NotImplemented,
             NamedLetters.alpha.__gt__(ValuedLetters.alpha)
         )
@@ -1033,7 +1033,7 @@ class OrderedConstantsTests(TestCase):
         L{twisted.python.constants._Constant.__ge__} returns C{NotImplemented}
         when comparing constants of different types.
         """
-        self.assertEquals(
+        self.assertEqual(
             NotImplemented,
             NamedLetters.alpha.__ge__(ValuedLetters.alpha)
         )
@@ -1044,7 +1044,7 @@ class OrderedConstantsTests(TestCase):
         L{twisted.python.constants._Constant.__lt__} returns C{NotImplemented}
         when comparing constants belonging to different containers.
         """
-        self.assertEquals(
+        self.assertEqual(
             NotImplemented,
             NamedLetters.alpha.__lt__(MoreNamedLetters.digamma)
         )
@@ -1055,7 +1055,7 @@ class OrderedConstantsTests(TestCase):
         L{twisted.python.constants._Constant.__le__} returns C{NotImplemented}
         when comparing constants belonging to different containers.
         """
-        self.assertEquals(
+        self.assertEqual(
             NotImplemented,
             NamedLetters.alpha.__le__(MoreNamedLetters.digamma)
         )
@@ -1066,7 +1066,7 @@ class OrderedConstantsTests(TestCase):
         L{twisted.python.constants._Constant.__gt__} returns C{NotImplemented}
         when comparing constants belonging to different containers.
         """
-        self.assertEquals(
+        self.assertEqual(
             NotImplemented,
             NamedLetters.alpha.__gt__(MoreNamedLetters.digamma)
         )
@@ -1077,7 +1077,7 @@ class OrderedConstantsTests(TestCase):
         L{twisted.python.constants._Constant.__ge__} returns C{NotImplemented}
         when comparing constants belonging to different containers.
         """
-        self.assertEquals(
+        self.assertEqual(
             NotImplemented,
             NamedLetters.alpha.__ge__(MoreNamedLetters.digamma)
         )

@@ -112,7 +112,7 @@ class SimpleJellyTest:
 
 
 
-class JellyTestCase(unittest.TestCase):
+class JellyTests(unittest.TestCase):
     """
     Testcases for L{jelly} module serialization.
 
@@ -365,12 +365,12 @@ class JellyTestCase(unittest.TestCase):
         """
         Simplest test case.
         """
-        self.failUnless(SimpleJellyTest('a', 'b').isTheSameAs(
+        self.assertTrue(SimpleJellyTest('a', 'b').isTheSameAs(
                         SimpleJellyTest('a', 'b')))
         a = SimpleJellyTest(1, 2)
         cereal = jelly.jelly(a)
         b = jelly.unjelly(cereal)
-        self.failUnless(a.isTheSameAs(b))
+        self.assertTrue(a.isTheSameAs(b))
 
 
     def test_identity(self):
@@ -425,7 +425,6 @@ class JellyTestCase(unittest.TestCase):
 
 
     def test_newStyleClasses(self):
-        j = jelly.jelly(D)
         uj = jelly.unjelly(D)
         self.assertIdentical(D, uj)
 
@@ -530,15 +529,15 @@ class JellyTestCase(unittest.TestCase):
         x = jelly.unjelly(jel, persistentLoad = persistentLoad)
 
         self.assertIdentical(x.b, x.c.b)
-        self.failUnless(perst[0], "persistentStore was not called.")
+        self.assertTrue(perst[0], "persistentStore was not called.")
         self.assertIdentical(x.b, a.b, "Persistent storage identity failure.")
 
 
     def test_newStyleClassesAttributes(self):
         n = TestNode()
         n1 = TestNode(n)
-        n11 = TestNode(n1)
-        n2 = TestNode(n)
+        TestNode(n1)
+        TestNode(n)
         # Jelly it
         jel = jelly.jelly(n)
         m = jelly.unjelly(jel)
@@ -575,6 +574,47 @@ class JellyTestCase(unittest.TestCase):
 
 
 
+class JellyDeprecationTests(unittest.TestCase):
+    """
+    Tests for deprecated Jelly things
+    """
+
+    def test_deprecatedInstanceAtom(self):
+        """
+        L{jelly.instance_atom} is deprecated since 15.0.0.
+        """
+        jelly.instance_atom
+        warnings = self.flushWarnings([self.test_deprecatedInstanceAtom])
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(
+            warnings[0]['message'],
+            'twisted.spread.jelly.instance_atom was deprecated in Twisted '
+            '15.0.0: instance_atom is unused within Twisted.')
+        self.assertEqual(
+            warnings[0]['category'],
+            DeprecationWarning)
+
+
+    def test_deprecatedUnjellyingInstanceAtom(self):
+        """
+        Unjellying the instance atom is deprecated with 15.0.0.
+        """
+        jelly.unjelly(
+            ["instance",
+             ["class", "twisted.test.test_jelly.A"],
+             ["dictionary"]])
+        warnings = self.flushWarnings()
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(
+            warnings[0]['message'],
+            "Unjelly support for the instance atom is deprecated since "
+            "Twisted 15.0.0.  Upgrade peer for modern instance support.")
+        self.assertEqual(
+            warnings[0]['category'],
+            DeprecationWarning)
+
+
+
 class ClassA(pb.Copyable, pb.RemoteCopy):
     def __init__(self):
         self.ref = ClassB(self)
@@ -587,7 +627,7 @@ class ClassB(pb.Copyable, pb.RemoteCopy):
 
 
 
-class CircularReferenceTestCase(unittest.TestCase):
+class CircularReferenceTests(unittest.TestCase):
     """
     Tests for circular references handling in the jelly/unjelly process.
     """

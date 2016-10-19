@@ -7,18 +7,20 @@ Tests for L{twisted.conch.recvline} and fixtures for testing related
 functionality.
 """
 
-import sys, os
+import os
+import sys
 
 from twisted.conch.insults import insults
 from twisted.conch import recvline
 
-from twisted.python import reflect, components
+from twisted.python import reflect, components, filepath
 from twisted.internet import defer, error
 from twisted.trial import unittest
 from twisted.cred import portal
 from twisted.test.proto_helpers import StringTransport
 
-class Arrows(unittest.TestCase):
+
+class ArrowsTests(unittest.TestCase):
     def setUp(self):
         self.underlyingTransport = StringTransport()
         self.pt = insults.ServerProtocol()
@@ -298,7 +300,8 @@ backspace = "\x7f"
 from twisted.cred import checkers
 
 try:
-    from twisted.conch.ssh import userauth, transport, channel, connection, session
+    from twisted.conch.ssh import (userauth, transport, channel, connection,
+                                   session, keys)
     from twisted.conch.manhole_ssh import TerminalUser, TerminalSession, TerminalRealm, TerminalSessionTransport, ConchFactory
 except ImportError:
     ssh = False
@@ -454,7 +457,9 @@ class _BaseMixin:
 class _SSHMixin(_BaseMixin):
     def setUp(self):
         if not ssh:
-            raise unittest.SkipTest("Crypto requirements missing, can't run historic recvline tests over ssh")
+            raise unittest.SkipTest(
+                "cryptography requirements missing, can't run historic "
+                "recvline tests over ssh")
 
         u, p = 'testuser', 'testpass'
         rlm = TerminalRealm()
@@ -465,6 +470,12 @@ class _SSHMixin(_BaseMixin):
             rlm,
             [checkers.InMemoryUsernamePasswordDatabaseDontUse(**{u: p})])
         sshFactory = ConchFactory(ptl)
+
+        sshKey = keys._getPersistentRSAKey(filepath.FilePath(self.mktemp()),
+                                           keySize=512)
+        sshFactory.publicKeys["ssh-rsa"] = sshKey
+        sshFactory.privateKeys["ssh-rsa"] = sshKey
+
         sshFactory.serverProtocol = self.serverProtocol
         sshFactory.startFactory()
 
@@ -661,13 +672,13 @@ class RecvlineLoopbackMixin:
              "end line",
              ">>> done"])
 
-class RecvlineLoopbackTelnet(_TelnetMixin, unittest.TestCase, RecvlineLoopbackMixin):
+class RecvlineLoopbackTelnetTests(_TelnetMixin, unittest.TestCase, RecvlineLoopbackMixin):
     pass
 
-class RecvlineLoopbackSSH(_SSHMixin, unittest.TestCase, RecvlineLoopbackMixin):
+class RecvlineLoopbackSSHTests(_SSHMixin, unittest.TestCase, RecvlineLoopbackMixin):
     pass
 
-class RecvlineLoopbackStdio(_StdioMixin, unittest.TestCase, RecvlineLoopbackMixin):
+class RecvlineLoopbackStdioTests(_StdioMixin, unittest.TestCase, RecvlineLoopbackMixin):
     if stdio is None:
         skip = "Terminal requirements missing, can't run recvline tests over stdio"
 
@@ -695,12 +706,12 @@ class HistoricRecvlineLoopbackMixin:
              "second line",
              ">>> done"])
 
-class HistoricRecvlineLoopbackTelnet(_TelnetMixin, unittest.TestCase, HistoricRecvlineLoopbackMixin):
+class HistoricRecvlineLoopbackTelnetTests(_TelnetMixin, unittest.TestCase, HistoricRecvlineLoopbackMixin):
     pass
 
-class HistoricRecvlineLoopbackSSH(_SSHMixin, unittest.TestCase, HistoricRecvlineLoopbackMixin):
+class HistoricRecvlineLoopbackSSHTests(_SSHMixin, unittest.TestCase, HistoricRecvlineLoopbackMixin):
     pass
 
-class HistoricRecvlineLoopbackStdio(_StdioMixin, unittest.TestCase, HistoricRecvlineLoopbackMixin):
+class HistoricRecvlineLoopbackStdioTests(_StdioMixin, unittest.TestCase, HistoricRecvlineLoopbackMixin):
     if stdio is None:
         skip = "Terminal requirements missing, can't run historic recvline tests over stdio"

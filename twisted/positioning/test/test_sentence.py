@@ -3,6 +3,9 @@
 """
 Tests for positioning sentences.
 """
+
+from __future__ import absolute_import, division
+
 import itertools
 
 from twisted.positioning import _sentence
@@ -73,7 +76,7 @@ class SentenceTestsMixin(object):
 
     def test_raiseOnMissingAttributeAccess(self):
         """
-        Accessing a nonexistant attribute raises C{AttributeError}.
+        Accessing a nonexistent attribute raises C{AttributeError}.
         """
         sentence = self.sentenceClass({})
         self.assertRaises(AttributeError, getattr, sentence, "BOGUS")

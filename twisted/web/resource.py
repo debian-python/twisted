@@ -145,7 +145,7 @@ class Resource:
         return self.children.get(name)
 
     def getDynamicEntity(self, name, request):
-        if not self.children.has_key(name):
+        if name not in self.children:
             return self.getChild(name, request)
         else:
             return None
@@ -293,12 +293,14 @@ class ErrorPage(Resource):
             L{ErrorPage.__init__}.
 
     @ivar code: An integer status code which will be used for the response.
+    @type code: C{int}
 
-    @ivar brief: A short string which will be included in the response body.
+    @ivar brief: A short string which will be included in the response body as
+        the page title.
     @type brief: C{str}
 
     @ivar detail: A longer string which will be included in the response body.
-    @ivar detail: C{str}
+    @type detail: C{str}
     """
 
     template = """

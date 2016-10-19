@@ -12,11 +12,8 @@ Interface definitions for L{twisted.web}.
 
 from zope.interface import Interface, Attribute
 
-from twisted.python.compat import _PY3
 from twisted.internet.interfaces import IPushProducer
-if not _PY3:
-    # Re-enable when cred is ported to Python 3. Fix as part of #6176:
-    from twisted.cred.credentials import IUsernameDigestHash
+from twisted.cred.credentials import IUsernameDigestHash
 
 
 class IRequest(Interface):
@@ -39,12 +36,6 @@ class IRequest(Interface):
         "for its query part, C{args} will be C{{'foo': ['bar', 'baz'], "
         "'quux': ['spam']}}.")
 
-    received_headers = Attribute(
-        "Backwards-compatibility access to C{requestHeaders}, deprecated in "
-        "Twisted 13.2.0.  Use C{requestHeaders} instead.  C{received_headers} "
-        "behaves mostly like a C{dict} and does not provide access to all "
-        "header values.")
-
     requestHeaders = Attribute(
         "A L{http_headers.Headers} instance giving all received HTTP request "
         "headers.")
@@ -53,12 +44,6 @@ class IRequest(Interface):
         "A file-like object giving the request body.  This may be a file on "
         "disk, a C{StringIO}, or some other type.  The implementation is free "
         "to decide on a per-request basis.")
-
-    headers = Attribute(
-        "Backwards-compatibility access to C{responseHeaders}, deprecated in "
-        "Twisted 13.2.0.  Use C{responseHeaders} instead.  C{headers} behaves "
-        "mostly like a C{dict} and does not provide access to all header "
-        "values nor does it allow multiple values for one header to be set.")
 
     responseHeaders = Attribute(
         "A L{http_headers.Headers} instance holding all HTTP response "
@@ -322,6 +307,25 @@ class IRequest(Interface):
         say 'https://www.example.com', so we do::
 
            request.setHost('www.example.com', 443, ssl=1)
+        """
+
+
+
+class INonQueuedRequestFactory(Interface):
+    """
+    A factory of L{IRequest} objects that does not take a ``queued`` parameter.
+    """
+    def __call__(channel):
+        """
+        Create an L{IRequest} that is operating on the given channel. There
+        must only be one L{IRequest} object processing at any given time on a
+        channel.
+
+        @param channel: A L{twisted.web.http.HTTPChannel} object.
+        @type channel: L{twisted.web.http.HTTPChannel}
+
+        @return: A request object.
+        @rtype: L{IRequest}
         """
 
 
@@ -737,7 +741,7 @@ class IPolicyForHTTPS(Interface):
         pair.
 
         @param hostname: The name of the requested remote host.
-        @type hostname: L{unicode}
+        @type hostname: L{bytes}
 
         @param port: The number of the requested remote port.
         @type port: L{int}
@@ -746,6 +750,33 @@ class IPolicyForHTTPS(Interface):
             requirements for the given remote host.
         @rtype: L{client connection creator
             <twisted.internet.interfaces.IOpenSSLClientConnectionCreator>}
+        """
+
+
+
+class IAgentEndpointFactory(Interface):
+    """
+    An L{IAgentEndpointFactory} provides a way of constructing an endpoint
+    used for outgoing Agent requests. This is useful in the case of needing to
+    proxy outgoing connections, or to otherwise vary the transport used.
+
+    @since: 15.0
+    """
+
+    def endpointForURI(uri):
+        """
+        Construct and return an L{IStreamClientEndpoint} for the outgoing
+        request's connection.
+
+        @param uri: The URI of the request.
+        @type uri: L{twisted.web.client.URI}
+
+        @return: An endpoint which will have its C{connect} method called to
+            issue the request.
+        @rtype: an L{IStreamClientEndpoint} provider
+
+        @raises twisted.internet.error.SchemeNotSupported: If the given
+            URI's scheme cannot be handled by this factory.
         """
 
 

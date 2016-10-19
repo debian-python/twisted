@@ -15,6 +15,7 @@ from zope.interface import implementer
 from twisted.python.log import msg
 from twisted.python.filepath import FilePath
 from twisted.python.failure import Failure
+from twisted.python.reflect import requireModule
 from twisted.internet.interfaces import IAddress, IStreamClientEndpoint
 from twisted.internet.protocol import Factory, Protocol
 from twisted.internet.defer import CancelledError, Deferred, succeed, fail
@@ -30,15 +31,7 @@ from twisted.cred.checkers import InMemoryUsernamePasswordDatabaseDontUse
 from twisted.conch.interfaces import IConchUser
 from twisted.conch.error import ConchError, UserRejectedKey, HostKeyChanged
 
-try:
-    from Crypto.Cipher import AES
-    from pyasn1 import type
-except ImportError as e:
-    skip = "can't run w/o PyCrypto and pyasn1 (%s)" % (e,)
-    SSHFactory = SSHUserAuthServer = SSHConnection = Key = SSHChannel = \
-        SSHAgentServer = KnownHostsFile = SSHPublicKeyDatabase = ConchUser = \
-        object
-else:
+if requireModule('cryptography') and requireModule('pyasn1.type'):
     from twisted.conch.ssh.factory import SSHFactory
     from twisted.conch.ssh.userauth import SSHUserAuthServer
     from twisted.conch.ssh.connection import SSHConnection
@@ -46,7 +39,7 @@ else:
     from twisted.conch.ssh.channel import SSHChannel
     from twisted.conch.ssh.agent import SSHAgentServer
     from twisted.conch.client.knownhosts import KnownHostsFile, ConsoleUI
-    from twisted.conch.checkers import SSHPublicKeyDatabase
+    from twisted.conch.checkers import SSHPublicKeyChecker, InMemorySSHKeyDB
     from twisted.conch.avatar import ConchUser
 
     from twisted.conch.test.keydata import (
@@ -58,8 +51,12 @@ else:
         _ExistingConnectionHelper)
 
     from twisted.conch.ssh.transport import SSHClientTransport
+else:
+    skip = "can't run w/o cryptography and pyasn1"
+    SSHFactory = SSHUserAuthServer = SSHConnection = Key = SSHChannel = \
+        SSHAgentServer = KnownHostsFile = SSHPublicKeyChecker = ConchUser = \
+        object
 
-from twisted.python.fakepwd import UserDatabase
 from twisted.test.proto_helpers import StringTransport
 from twisted.test.iosim import FakeTransport, connect
 
@@ -260,23 +257,6 @@ class SingleUseMemoryEndpoint(object):
                     self._server, isServer=True),
                 protocol, AbortableFakeTransport(protocol, isServer=False))
             return succeed(protocol)
-
-
-
-class MemorySSHPublicKeyDatabase(SSHPublicKeyDatabase):
-    def __init__(self, users):
-        self._users = users
-        self._userdb = UserDatabase()
-        for i, username in enumerate(self._users):
-            self._userdb.addUser(
-                username, b"garbage", 123 + i, 456, None, None, None)
-
-
-    def getAuthorizedKeysFiles(self, credentials):
-        try:
-            return self._users[credentials.username]
-        except KeyError:
-            return []
 
 
 
@@ -729,6 +709,42 @@ class NewConnectionTests(TestCase, SSHCommandClientEndpointTestsMixin):
             self.factory, self.reactor.tcpClients[0][2])
 
 
+    def loseConnectionToServer(self, server, client, protocol, pump):
+        """
+        Lose the connection to a server and pump the L{IOPump} sufficiently for
+        the client to handle the lost connection. Asserts that the client
+        disconnects its transport.
+
+        @param server: The SSH server protocol over which C{protocol} is
+            running.
+        @type server: L{IProtocol} provider
+
+        @param client: The SSH client protocol over which C{protocol} is
+            running.
+        @type client: L{IProtocol} provider
+
+        @param protocol: The protocol created by calling connect on the ssh
+            endpoint under test.
+        @type protocol: L{IProtocol} provider
+
+        @param pump: The L{IOPump} connecting client to server.
+        @type pump: L{IOPump}
+        """
+        closed = self.record(server, protocol, 'closed', noArgs=True)
+        protocol.transport.loseConnection()
+        pump.pump()
+        self.assertEqual([None], closed)
+
+        # Let the last bit of network traffic flow.  This lets the server's
+        # close acknowledgement through, at which point the client can close
+        # the overall SSH connection.
+        pump.pump()
+
+        # Given that the client transport is disconnecting, report the
+        # disconnect from up to the ssh protocol.
+        client.transport.reportDisconnect()
+
+
     def assertClientTransportState(self, client, immediateClose):
         """
         Assert that the transport for the given protocol has been disconnected.
@@ -990,13 +1006,9 @@ class NewConnectionTests(TestCase, SSHCommandClientEndpointTestsMixin):
             OpenSSH-formatted private keys.
         @type users: C{dict}
         """
-        credentials = {}
-        for username, keyString in users.iteritems():
-            goodKey = Key.fromString(keyString)
-            authorizedKeys = FilePath(self.mktemp())
-            authorizedKeys.setContent(goodKey.public().toString("OPENSSH"))
-            credentials[username] = [authorizedKeys]
-        checker = MemorySSHPublicKeyDatabase(credentials)
+        mapping = dict([(k,[Key.fromString(v).public()])
+                        for k, v in users.iteritems()])
+        checker = SSHPublicKeyChecker(InMemorySSHKeyDB(mapping))
         portal.registerChecker(checker)
 
 
@@ -1128,7 +1140,8 @@ class NewConnectionTests(TestCase, SSHCommandClientEndpointTestsMixin):
         """
         If L{SSHCommandClientEndpoint} is initialized with an
         L{SSHAgentClient}, the agent is used to authenticate with the SSH
-        server.
+        server. Once the connection with the SSH server has concluded, the
+        connection to the agent is disconnected.
         """
         key = Key.fromString(privateRSA_openssh)
         agentServer = SSHAgentServer()
@@ -1161,6 +1174,12 @@ class NewConnectionTests(TestCase, SSHCommandClientEndpointTestsMixin):
         protocol = self.successResultOf(connected)
         self.assertIsNot(None, protocol.transport)
 
+        # Ensure the connection with the agent is cleaned up after the
+        # connection with the server is lost.
+        self.loseConnectionToServer(server, client, protocol, pump)
+        self.assertTrue(client.transport.disconnecting)
+        self.assertTrue(agentEndpoint.pump.clientIO.disconnecting)
+
 
     def test_loseConnection(self):
         """
@@ -1178,15 +1197,7 @@ class NewConnectionTests(TestCase, SSHCommandClientEndpointTestsMixin):
         server, client, pump = self.finishConnection()
 
         protocol = self.successResultOf(connected)
-        closed = self.record(server, protocol, 'closed', noArgs=True)
-        protocol.transport.loseConnection()
-        pump.pump()
-        self.assertEqual([None], closed)
-
-        # Let the last bit of network traffic flow.  This lets the server's
-        # close acknowledgement through, at which point the client can close
-        # the overall SSH connection.
-        pump.pump()
+        self.loseConnectionToServer(server, client, protocol, pump)
 
         # Nothing useful can be done with the connection at this point, so the
         # endpoint should close it.

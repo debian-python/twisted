@@ -12,12 +12,15 @@ __metaclass__ = type
 
 import sys
 import time
+import warnings
 
 from zope.interface import implementer
 
 from twisted.python import log
 from twisted.python import reflect
+from twisted.python.deprecate import _getDeprecationWarningString
 from twisted.python.failure import Failure
+from twisted.python.versions import Version
 
 from twisted.internet import base, defer
 from twisted.internet.interfaces import IReactorTime
@@ -46,10 +49,6 @@ class LoopingCall:
         exception. In either case, it will be C{False} by the time the
         C{Deferred} returned by L{start} fires its callback or errback.
 
-    @type _expectNextCallAt: C{float}
-    @ivar _expectNextCallAt: The time at which this instance most recently
-        scheduled itself to run.
-
     @type _realLastTime: C{float}
     @ivar _realLastTime: When counting skips, the time at which the skip
         counter was last invoked.
@@ -61,9 +60,8 @@ class LoopingCall:
 
     call = None
     running = False
-    deferred = None
+    _deferred = None
     interval = None
-    _expectNextCallAt = 0.0
     _runAtStart = False
     starttime = None
 
@@ -74,6 +72,20 @@ class LoopingCall:
         from twisted.internet import reactor
         self.clock = reactor
 
+    @property
+    def deferred(self):
+        """
+        DEPRECATED. L{Deferred} fired when loop stops or fails.
+
+        Use the L{Deferred} returned by L{LoopingCall.start}.
+        """
+        warningString = _getDeprecationWarningString(
+            "twisted.internet.task.LoopingCall.deferred",
+            Version("Twisted", 16, 0, 0),
+            replacement='the deferred returned by start()')
+        warnings.warn(warningString, DeprecationWarning, stacklevel=2)
+
+        return self._deferred
 
     def withCount(cls, countCallable):
         """
@@ -91,6 +103,8 @@ class LoopingCall:
         elapsed, or if the callable itself blocks for longer than an interval,
         preventing I{itself} from being called.
 
+        When running with an interval if 0, count will be always 1.
+
         @param countCallable: A callable that will be invoked each time the
             resulting LoopingCall is run, with an integer specifying the number
             of calls that should have been invoked.
@@ -107,16 +121,22 @@ class LoopingCall:
 
         def counter():
             now = self.clock.seconds()
+
+            if self.interval == 0:
+                self._realLastTime = now
+                return countCallable(1)
+
             lastTime = self._realLastTime
             if lastTime is None:
                 lastTime = self.starttime
                 if self._runAtStart:
                     lastTime -= self.interval
-            self._realLastTime = now
             lastInterval = self._intervalOf(lastTime)
             thisInterval = self._intervalOf(now)
             count = thisInterval - lastInterval
-            return countCallable(count)
+            if count > 0:
+                self._realLastTime = now
+                return countCallable(count)
 
         self = cls(counter)
 
@@ -164,16 +184,17 @@ class LoopingCall:
         if interval < 0:
             raise ValueError("interval must be >= 0")
         self.running = True
-        d = self.deferred = defer.Deferred()
+        # Loop might fail to start and then self._deferred will be cleared.
+        # This why the local C{deferred} variable is used.
+        deferred = self._deferred = defer.Deferred()
         self.starttime = self.clock.seconds()
-        self._expectNextCallAt = self.starttime
         self.interval = interval
         self._runAtStart = now
         if now:
             self()
         else:
-            self._reschedule()
-        return d
+            self._scheduleFrom(self.starttime)
+        return deferred
 
     def stop(self):
         """Stop running function.
@@ -184,7 +205,7 @@ class LoopingCall:
         if self.call is not None:
             self.call.cancel()
             self.call = None
-            d, self.deferred = self.deferred, None
+            d, self._deferred = self._deferred, None
             d.callback(self)
 
     def reset(self):
@@ -198,20 +219,20 @@ class LoopingCall:
         if self.call is not None:
             self.call.cancel()
             self.call = None
-            self._expectNextCallAt = self.clock.seconds()
-            self._reschedule()
+            self.starttime = self.clock.seconds()
+            self._scheduleFrom(self.starttime)
 
     def __call__(self):
         def cb(result):
             if self.running:
-                self._reschedule()
+                self._scheduleFrom(self.clock.seconds())
             else:
-                d, self.deferred = self.deferred, None
+                d, self._deferred = self._deferred, None
                 d.callback(self)
 
         def eb(failure):
             self.running = False
-            d, self.deferred = self.deferred, None
+            d, self._deferred = self._deferred, None
             d.errback(failure)
 
         self.call = None
@@ -220,27 +241,39 @@ class LoopingCall:
         d.addErrback(eb)
 
 
-    def _reschedule(self):
+    def _scheduleFrom(self, when):
         """
         Schedule the next iteration of this looping call.
-        """
-        if self.interval == 0:
-            self.call = self.clock.callLater(0, self)
-            return
 
-        currentTime = self.clock.seconds()
-        # Find how long is left until the interval comes around again.
-        untilNextTime = (self._expectNextCallAt - currentTime) % self.interval
-        # Make sure it is in the future, in case more than one interval worth
-        # of time passed since the previous call was made.
-        nextTime = max(
-            self._expectNextCallAt + self.interval, currentTime + untilNextTime)
-        # If the interval falls on the current time exactly, skip it and
-        # schedule the call for the next interval.
-        if nextTime == currentTime:
-            nextTime += self.interval
-        self._expectNextCallAt = nextTime
-        self.call = self.clock.callLater(nextTime - currentTime, self)
+        @param when: The present time from whence the call is scheduled.
+        """
+        def howLong():
+            # How long should it take until the next invocation of our
+            # callable?  Split out into a function because there are multiple
+            # places we want to 'return' out of this.
+            if self.interval == 0:
+                # If the interval is 0, just go as fast as possible, always
+                # return zero, call ourselves ASAP.
+                return 0
+            # Compute the time until the next interval; how long has this call
+            # been running for?
+            runningFor = when - self.starttime
+            # And based on that start time, when does the current interval end?
+            untilNextInterval = self.interval - (runningFor % self.interval)
+            # Now that we know how long it would be, we have to tell if the
+            # number is effectively zero.  However, we can't just test against
+            # zero.  If a number with a small exponent is added to a number
+            # with a large exponent, it may be so small that the digits just
+            # fall off the end, which means that adding the increment makes no
+            # difference; it's time to tick over into the next interval.
+            if when == when + untilNextInterval:
+                # If it's effectively zero, then we need to add another
+                # interval.
+                return self.interval
+            # Finally, if everything else is normal, we just return the
+            # computed delay.
+            return untilNextInterval
+        self.call = self.clock.callLater(howLong(), self)
 
 
     def __repr__(self):
@@ -738,7 +771,7 @@ class Clock:
     def seconds(self):
         """
         Pretend to be time.time().  This is used internally when an operation
-        such as L{IDelayedCall.reset} needs to determine a a time value
+        such as L{IDelayedCall.reset} needs to determine a time value
         relative to the current time.
 
         @rtype: C{float}

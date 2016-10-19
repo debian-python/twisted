@@ -23,7 +23,7 @@ class FakeAMProtocol(object):
 
 
 
-class WorkerReporterTestCase(TestCase):
+class WorkerReporterTests(TestCase):
     """
     Tests for L{WorkerReporter}.
     """
@@ -109,11 +109,33 @@ class WorkerReporterTestCase(TestCase):
                          managercommands.AddExpectedFailure)
 
 
+    def test_addExpectedFailureNoTodo(self):
+        """
+        L{WorkerReporter.addExpectedFailure} sends a
+        L{managercommands.AddExpectedFailure} command.
+        protocol.
+        """
+        self.workerReporter.addExpectedFailure(
+            self.test, Failure(RuntimeError('error')))
+        self.assertEqual(self.fakeAMProtocol.lastCall,
+                         managercommands.AddExpectedFailure)
+
+
     def test_addUnexpectedSuccess(self):
         """
         L{WorkerReporter.addUnexpectedSuccess} sends a
         L{managercommands.AddUnexpectedSuccess} command.
         """
         self.workerReporter.addUnexpectedSuccess(self.test, Todo('todo'))
+        self.assertEqual(self.fakeAMProtocol.lastCall,
+                         managercommands.AddUnexpectedSuccess)
+
+
+    def test_addUnexpectedSuccessNoTodo(self):
+        """
+        L{WorkerReporter.addUnexpectedSuccess} sends a
+        L{managercommands.AddUnexpectedSuccess} command.
+        """
+        self.workerReporter.addUnexpectedSuccess(self.test)
         self.assertEqual(self.fakeAMProtocol.lastCall,
                          managercommands.AddUnexpectedSuccess)

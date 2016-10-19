@@ -369,7 +369,7 @@ class CachedReturner(pb.Root):
         return self.cache
 
 
-class NewStyleTestCase(unittest.TestCase):
+class NewStyleTests(unittest.TestCase):
     def setUp(self):
         """
         Create a pb server using L{Echoer} protocol and connect a client to it.
@@ -406,9 +406,9 @@ class NewStyleTestCase(unittest.TestCase):
         orig = NewStyleCopy("value")
         d = self.ref.callRemote("echo", orig)
         def cb(res):
-            self.failUnless(isinstance(res, NewStyleCopy))
+            self.assertTrue(isinstance(res, NewStyleCopy))
             self.assertEqual(res.s, "value")
-            self.failIf(res is orig) # no cheating :)
+            self.assertFalse(res is orig) # no cheating :)
         d.addCallback(cb)
         return d
 
@@ -422,11 +422,11 @@ class NewStyleTestCase(unittest.TestCase):
         d = self.ref.callRemote("echo", orig)
         def cb(res):
             # receiving the response creates a third one on the way back
-            self.failUnless(isinstance(res, NewStyleCopy2))
+            self.assertTrue(isinstance(res, NewStyleCopy2))
             self.assertEqual(res.value, 2)
             self.assertEqual(NewStyleCopy2.allocated, 3)
             self.assertEqual(NewStyleCopy2.initialized, 1)
-            self.failIf(res is orig) # no cheating :)
+            self.assertFalse(res is orig) # no cheating :)
         # sending the object creates a second one on the far side
         d.addCallback(cb)
         return d
@@ -466,7 +466,7 @@ class ConnectionNotifyServerFactory(pb.PBServerFactory):
 
 
 
-class NewStyleCachedTestCase(unittest.TestCase):
+class NewStyleCachedTests(unittest.TestCase):
     def setUp(self):
         """
         Create a pb server using L{CachedReturner} protocol and connect a
@@ -520,7 +520,7 @@ class NewStyleCachedTestCase(unittest.TestCase):
 
 
 
-class BrokerTestCase(unittest.TestCase):
+class BrokerTests(unittest.TestCase):
     thunkResult = None
 
     def tearDown(self):
@@ -832,7 +832,7 @@ class FilePagerizer(pb.Referenceable):
 
 
 
-class PagingTestCase(unittest.TestCase):
+class PagingTests(unittest.TestCase):
     """
     Test pb objects sending data by pages.
     """
@@ -966,7 +966,7 @@ class GetPublisher(pb.Referenceable):
 
 pb.setUnjellyableForClass(DumbPublishable, DumbPub)
 
-class DisconnectionTestCase(unittest.TestCase):
+class DisconnectionTests(unittest.TestCase):
     """
     Test disconnection callbacks.
     """
@@ -1190,7 +1190,8 @@ class NewCredLeakTests(unittest.TestCase):
         connectionBroken = []
         root = clientBroker.remoteForName("root")
         d = root.callRemote("login", 'guest')
-        def cbResponse((challenge, challenger)):
+        def cbResponse(result):
+            (challenge, challenger) = result
             mind = SimpleRemote()
             return challenger.callRemote("respond",
                     pb.respond(challenge, 'guest'), mind)
@@ -1213,7 +1214,7 @@ class NewCredLeakTests(unittest.TestCase):
 
 
 
-class NewCredTestCase(unittest.TestCase):
+class NewCredTests(unittest.TestCase):
     """
     Tests related to the L{twisted.cred} support in PB.
     """
@@ -1462,12 +1463,14 @@ class NewCredTestCase(unittest.TestCase):
         secondLogin = factory.login(
             credentials.UsernamePassword('baz', 'quux'), "BRAINS!")
         d = gatherResults([firstLogin, secondLogin])
-        def cbLoggedIn((first, second)):
+        def cbLoggedIn(result):
+            (first, second) = result
             return gatherResults([
                     first.callRemote('getAvatarId'),
                     second.callRemote('getAvatarId')])
         d.addCallback(cbLoggedIn)
-        def cbAvatarIds((first, second)):
+        def cbAvatarIds(result):
+            (first, second) = result
             self.assertEqual(first, 'foo')
             self.assertEqual(second, 'baz')
         d.addCallback(cbAvatarIds)
@@ -1648,7 +1651,7 @@ class NonSubclassingPerspective:
 
 
 
-class NSPTestCase(unittest.TestCase):
+class NSPTests(unittest.TestCase):
     """
     Tests for authentication against a realm where the L{IPerspective}
     implementation is not a subclass of L{Avatar}.
@@ -1736,7 +1739,7 @@ class Forwarded:
         return succeed(True)
 
 
-class SpreadUtilTestCase(unittest.TestCase):
+class SpreadUtilTests(unittest.TestCase):
     """
     Tests for L{twisted.spread.util}.
     """
@@ -1799,7 +1802,7 @@ class SpreadUtilTestCase(unittest.TestCase):
 
 
 
-class PBWithSecurityOptionsTest(unittest.TestCase):
+class PBWithSecurityOptionsTests(unittest.TestCase):
     """
     Test security customization.
     """

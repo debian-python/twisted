@@ -5,12 +5,13 @@
 Tests for L{twisted.names} example scripts.
 """
 
+from __future__ import absolute_import, division
+
 import sys
-from StringIO import StringIO
 
 from twisted.python.filepath import FilePath
 from twisted.trial.unittest import SkipTest, TestCase
-
+from twisted.python.compat import NativeStringIO
 
 
 class ExampleTestBase(object):
@@ -37,16 +38,17 @@ class ExampleTestBase(object):
         self.originalPath = sys.path[:]
         self.originalModules = sys.modules.copy()
 
-        self.fakeErr = StringIO()
+        # Python usually expects native strs to be written to sys.stdout/stderr
+        self.fakeErr = NativeStringIO()
         self.patch(sys, 'stderr', self.fakeErr)
-        self.fakeOut = StringIO()
+        self.fakeOut = NativeStringIO()
         self.patch(sys, 'stdout', self.fakeOut)
 
         # Get documentation root
         here = (
             FilePath(__file__)
             .parent().parent().parent().parent()
-            .child('docs').child('projects')
+            .child('docs')
         )
 
         # Find the example script within this branch
@@ -81,7 +83,7 @@ class ExampleTestBase(object):
         """
         self.assertEqual(
             self.examplePath.open().readline().rstrip(),
-            '#!/usr/bin/env python')
+            b'#!/usr/bin/env python')
 
 
     def test_usageConsistency(self):

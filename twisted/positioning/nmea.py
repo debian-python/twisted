@@ -18,7 +18,9 @@ U{http://www.nmea.org/content/nmea_standards/nmea_0183_v_410.asp}.
 
 @since: 14.0
 """
-import itertools
+
+from __future__ import absolute_import, division
+
 import operator
 import datetime
 from zope.interface import implementer
@@ -27,7 +29,7 @@ from twisted.positioning import base, ipositioning, _sentence
 from twisted.positioning.base import Angles
 from twisted.protocols.basic import LineReceiver
 from twisted.python.constants import Values, ValueConstant
-from twisted.python.compat import reduce
+from twisted.python.compat import reduce, izip, nativeString, iterbytes
 
 
 class GPGGAFixQualities(Values):
@@ -106,16 +108,16 @@ def _split(sentence):
     Returns the split version of an NMEA sentence, minus header
     and checksum.
 
-    @param sentence: The NMEA sentence to split.
-    @type sentence: C{str}
+    >>> _split(b"$GPGGA,spam,eggs*00")
+    [b'GPGGA', b'spam', b'eggs']
 
-    >>> _split("$GPGGA,spam,eggs*00")
-    ['GPGGA', 'spam', 'eggs']
+    @param sentence: The NMEA sentence to split.
+    @type sentence: C{bytes}
     """
-    if sentence[-3] == "*": # Sentence with checksum
-        return sentence[1:-3].split(',')
-    elif sentence[-1] == "*": # Sentence without checksum
-        return sentence[1:-1].split(',')
+    if sentence[-3:-2] == b"*": # Sentence with checksum
+        return sentence[1:-3].split(b',')
+    elif sentence[-1:] == b"*": # Sentence without checksum
+        return sentence[1:-1].split(b',')
     else:
         raise base.InvalidSentence("malformed sentence %s" % (sentence,))
 
@@ -126,16 +128,16 @@ def _validateChecksum(sentence):
     Validates the checksum of an NMEA sentence.
 
     @param sentence: The NMEA sentence to check the checksum of.
-    @type sentence: C{str}
+    @type sentence: C{bytes}
 
     @raise ValueError: If the sentence has an invalid checksum.
 
     Simply returns on sentences that either don't have a checksum,
     or have a valid checksum.
     """
-    if sentence[-3] == '*':  # Sentence has a checksum
+    if sentence[-3:-2] == b'*':  # Sentence has a checksum
         reference, source = int(sentence[-2:], 16), sentence[1:-3]
-        computed = reduce(operator.xor, (ord(x) for x in source))
+        computed = reduce(operator.xor, [ord(x) for x in iterbytes(source)])
         if computed != reference:
             raise base.InvalidChecksum("%02x != %02x" % (computed, reference))
 
@@ -181,14 +183,15 @@ class NMEAProtocol(LineReceiver, _sentence._PositioningSentenceProducerMixin):
         Parses the data from the sentence and validates the checksum.
 
         @param rawSentence: The NMEA positioning sentence.
-        @type rawSentence: C{str}
+        @type rawSentence: C{bytes}
         """
         sentence = rawSentence.strip()
 
         _validateChecksum(sentence)
         splitSentence = _split(sentence)
 
-        sentenceType, contents = splitSentence[0], splitSentence[1:]
+        sentenceType = nativeString(splitSentence[0])
+        contents = [nativeString(x) for x in splitSentence[1:]]
 
         try:
             keys = self._SENTENCE_CONTENTS[sentenceType]
@@ -196,7 +199,7 @@ class NMEAProtocol(LineReceiver, _sentence._PositioningSentenceProducerMixin):
             raise ValueError("unknown sentence type %s" % sentenceType)
 
         sentenceData = {"type": sentenceType}
-        for key, value in itertools.izip(keys, contents):
+        for key, value in izip(keys, contents):
             if key is not None and value != "":
                 sentenceData[key] = value
 
@@ -382,7 +385,7 @@ class NMEASentence(_sentence._BaseSentence):
         but for a position on a plane perpendicular to the geoid. (VDOP)
     @ivar positionDilutionOfPrecision: Euclidian norm of HDOP and VDOP.
     @ivar satellitePRN: The unique identifcation number of a particular
-        satelite. Optionally suffixed with C{_N} if multiple satellites are
+        satellite. Optionally suffixed with C{_N} if multiple satellites are
         referenced in a sentence, where C{N in range(4)}.
     @ivar elevation: The elevation of a satellite in decimal degrees.
         Optionally suffixed with C{_N}, as with C{satellitePRN}.
@@ -391,7 +394,7 @@ class NMEASentence(_sentence._BaseSentence):
     @ivar signalToNoiseRatio: The SNR of a satellite signal, in decibels.
         Optionally suffixed with C{_N}, as with C{satellitePRN}.
     @ivar usedSatellitePRN_N: Where C{int(N) in range(12)}. The PRN
-        of a satelite used in computing the fix.
+        of a satellite used in computing the fix.
     """
     ALLOWED_ATTRIBUTES = NMEAProtocol.getSentenceAttributes()
 
@@ -657,7 +660,7 @@ class NMEAAdapter(object):
         @type unitKey: C{str}
         @param sourceKey: The name of the key/attribute that contains the
             current value to be converted (expressed in units as defined
-            according to the the C{unit} parameter). If unset, will use the
+            according to the C{unit} parameter). If unset, will use the
             same key as the value key.
         @type sourceKey: C{str}
         @param valueKey: The key name in which the data will be stored in the

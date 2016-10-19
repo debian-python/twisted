@@ -183,10 +183,10 @@ class TestConnection(connection.SSHConnection):
 
 
 
-class ConnectionTestCase(unittest.TestCase):
+class ConnectionTests(unittest.TestCase):
 
     if test_userauth.transport is None:
-        skip = "Cannot run without both PyCrypto and pyasn1"
+        skip = "Cannot run without both cryptography and pyasn1"
 
     def setUp(self):
         self.transport = test_userauth.FakeTransport(None)
@@ -354,7 +354,7 @@ class ConnectionTestCase(unittest.TestCase):
         Like L{test_lookupChannelError}, but for the case where the failure code
         is represented as a C{long} instead of a C{int}.
         """
-        self._lookupChannelErrorTest(123L)
+        self._lookupChannelErrorTest(123)
 
 
     def test_CHANNEL_OPEN_CONFIRMATION(self):
@@ -700,12 +700,12 @@ class ConnectionTestCase(unittest.TestCase):
 
 
 
-class TestCleanConnectionShutdown(unittest.TestCase):
+class CleanConnectionShutdownTests(unittest.TestCase):
     """
     Check whether correct cleanup is performed on connection shutdown.
     """
     if test_userauth.transport is None:
-        skip = "Cannot run without both PyCrypto and pyasn1"
+        skip = "Cannot run without both cryptography and pyasn1"
 
     def setUp(self):
         self.transport = test_userauth.FakeTransport(None)

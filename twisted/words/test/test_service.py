@@ -17,7 +17,7 @@ from twisted.spread import pb
 from twisted.internet.defer import Deferred, DeferredList, maybeDeferred, succeed
 from twisted.internet import address, defer, reactor
 
-class RealmTestCase(unittest.TestCase):
+class RealmTests(unittest.TestCase):
     def _entityCreationTest(self, kind):
         # Kind is "user" or "group"
         realm = service.InMemoryWordsRealm("realmname")
@@ -183,7 +183,7 @@ class TestCaseUserAgg(object):
         self.protocol.dataReceived(stuff)
 
 
-class IRCProtocolTestCase(unittest.TestCase):
+class IRCProtocolTests(unittest.TestCase):
     STATIC_USERS = [
         u'useruser', u'otheruser', u'someguy', u'firstuser', u'username',
         u'userone', u'usertwo', u'userthree', u'someuser']
@@ -216,7 +216,7 @@ class IRCProtocolTestCase(unittest.TestCase):
         for (prefix, command, args) in response:
             if command in expected:
                 expected.remove(command)
-        self.failIf(expected, "Missing responses for %r" % (expected,))
+        self.assertFalse(expected, "Missing responses for %r" % (expected,))
 
 
     def _login(self, user, nick, password=None):
@@ -512,7 +512,7 @@ class IRCProtocolTestCase(unittest.TestCase):
         response = self._response(user)
         event = self._response(other)
 
-        self.failIf(response)
+        self.assertFalse(response)
         self.assertEqual(len(event), 1)
         self.assertEqual(event[0][0], 'useruser!useruser@realmname')
         self.assertEqual(event[0][1], 'PRIVMSG', -1)
@@ -532,7 +532,7 @@ class IRCProtocolTestCase(unittest.TestCase):
         response = self._response(user)
         event = self._response(other)
 
-        self.failIf(response)
+        self.assertFalse(response)
         self.assertEqual(len(event), 1)
         self.assertEqual(event[0][0], 'useruser!useruser@realmname')
         self.assertEqual(event[0][1], 'PRIVMSG')
@@ -628,8 +628,8 @@ class IRCProtocolTestCase(unittest.TestCase):
         users[0].write('WHO #groupname\r\n')
 
         r = self._response(users[0])
-        self.failIf(self._response(users[1]))
-        self.failIf(self._response(users[2]))
+        self.assertFalse(self._response(users[1]))
+        self.assertFalse(self._response(users[2]))
 
         wantusers = ['userone', 'usertwo', 'userthree']
         for (prefix, code, stuff) in r[:-1]:
@@ -639,13 +639,13 @@ class IRCProtocolTestCase(unittest.TestCase):
             (myname, group, theirname, theirhost, theirserver, theirnick, flag, extra) = stuff
             self.assertEqual(myname, 'userone')
             self.assertEqual(group, '#groupname')
-            self.failUnless(theirname in wantusers)
+            self.assertTrue(theirname in wantusers)
             self.assertEqual(theirhost, 'realmname')
             self.assertEqual(theirserver, 'realmname')
             wantusers.remove(theirnick)
             self.assertEqual(flag, 'H')
             self.assertEqual(extra, '0 ' + theirnick)
-        self.failIf(wantusers)
+        self.assertFalse(wantusers)
 
         prefix, code, stuff = r[-1]
         self.assertEqual(prefix, 'realmname')
@@ -780,7 +780,7 @@ class TestMind(service.PBMind):
 pb.setUnjellyableForClass(TestMind, service.PBMindReference)
 
 
-class PBProtocolTestCase(unittest.TestCase):
+class PBProtocolTests(unittest.TestCase):
     def setUp(self):
         self.realm = service.InMemoryWordsRealm("realmname")
         self.checker = checkers.InMemoryUsernamePasswordDatabaseDontUse()
