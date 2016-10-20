@@ -212,20 +212,22 @@ binary-arch: build-arch install
 	dh_lintian -a
 	dh_installdocs -a
 	dh_installmenu -a
+
 	dh_strip -ppython-twisted-bin --dbg-package=python-twisted-bin-dbg
 	rm -rf debian/python-twisted-bin-dbg/usr/share/doc/python-twisted-bin-dbg
 	ln -s python-twisted-bin \
 	    debian/python-twisted-bin-dbg/usr/share/doc/python-twisted-bin-dbg
+
 	dh_strip -ppython-twisted-runner --dbg-package=python-twisted-runner-dbg
 	rm -rf debian/python-twisted-runner-dbg/usr/share/doc/python-twisted-runner-dbg
 	ln -s python-twisted-runner \
             debian/python-twisted-runner-dbg/usr/share/doc/python-twisted-runner-dbg
-ifeq (0,1)
+
 	dh_strip -ppython3-twisted-bin --dbg-package=python3-twisted-bin-dbg
 	rm -rf debian/python3-twisted-bin-dbg/usr/share/doc/python3-twisted-bin-dbg
 	ln -s python3-twisted-bin \
 	    debian/python3-twisted-bin-dbg/usr/share/doc/python3-twisted-bin-dbg
-endif
+
 	dh_compress -a -X.py
 	dh_fixperms -a
 	dh_python2 -a
