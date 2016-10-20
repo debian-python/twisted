@@ -10,7 +10,6 @@ Build-Depends: debhelper (>=7.0.50~), patch,
   python3-all-dev, python3-all-dbg,
   python3-zope.interface (>= 4.0.2), python3-setuptools
 Build-Depends-Indep: python3-sphinx
-XS-Python-Version: all
 Standards-Version: 3.9.8
 Homepage: https://github.com/waylan/Python-Markdown
 Vcs-Browser: https://anonscm.debian.org/cgit/python-modules/packages/twisted.git
