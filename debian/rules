@@ -68,9 +68,6 @@ install-python%: install-prereq
 	python$* setup.py install --root=tmp --install-layout=deb
 	cp -r tmp$(call py_libdir,$*)/Twisted-*.egg-info debian/python-twisted-core$(call py_libdir,$*)/
 
-	: # We don't release the Twisted Pair package, as it's not developed anymore
-	rm -rf debian/python-twisted-core$(call py_libdir,$*)/twisted/pair
-
 	find debian/python-twisted-core -name 'topfiles' -type d | xargs -r rm -rf
 
 	: # python-twisted
