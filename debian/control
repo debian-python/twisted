@@ -34,6 +34,7 @@ Description: Event-based framework for internet applications
 
 Package: python3-twisted-bin
 Architecture: any
+Multi-Arch: same
 Depends: ${python3:Depends}, ${shlibs:Depends}, ${misc:Depends}
 Provides: ${python:Provides}
 Suggests: python3-twisted-bin-dbg
@@ -46,6 +47,7 @@ Package: python3-twisted-bin-dbg
 Priority: extra
 Section: debug
 Architecture: any
+Multi-Arch: same
 Depends: python3-zope.interface-dbg, python3-twisted-bin (= ${binary:Version}), python3-dbg, ${shlibs:Depends}, ${misc:Depends}
 Description: Event-based framework for internet applications (debug extension)
  It includes a web server, a telnet server, a multiplayer RPG engine, a 
@@ -56,6 +58,7 @@ Description: Event-based framework for internet applications (debug extension)
 
 Package: python-twisted-bin
 Architecture: any
+Multi-Arch: same
 Depends: ${python:Depends}, ${shlibs:Depends}, ${misc:Depends}
 Provides: ${python:Provides}
 Suggests: python-twisted-bin-dbg
@@ -69,6 +72,7 @@ Package: python-twisted-bin-dbg
 Priority: extra
 Section: debug
 Architecture: any
+Multi-Arch: same
 Depends: python-twisted-bin (= ${binary:Version}),
   python-zope.interface-dbg, python-dbg,
   ${shlibs:Depends}, ${misc:Depends}
@@ -176,6 +180,7 @@ Description: twisted dummy package for NNTP protocol implementation
 
 Package: python-twisted-runner
 Architecture: any
+Multi-Arch: same
 Depends: python-twisted-core (>= ${source:Version}),
   ${python:Depends}, ${shlibs:Depends}, ${misc:Depends}
 Provides: ${python:Provides}
@@ -189,6 +194,7 @@ Package: python-twisted-runner-dbg
 Section: debug
 Priority: extra
 Architecture: any
+Multi-Arch: same
 Depends: python-twisted-runner (= ${binary:Version}),
   python-dbg,
   ${shlibs:Depends}, ${misc:Depends}
@@ -220,6 +226,7 @@ Package: twisted-doc
 Section: doc
 Priority: extra
 Architecture: all
+Multi-Arch: foreign
 Depends: ${misc:Depends}, ${sphinxdoc:Depends}
 Suggests: python-twisted
 Recommends: www-browser | postscript-viewer | pdf-viewer
