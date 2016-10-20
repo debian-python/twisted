@@ -1,6 +1,0 @@
-#!/usr/bin/python3
-
-import sys
-import twisted
-
-sys.exit(0)
