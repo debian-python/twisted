@@ -1,12 +1,15 @@
-Description: Update for wxPython 3.0
- These changes should remain compatible with wxPython 2.8.
-Author: Olly Betts <olly@survex.com>
-Bug-Debian: https://bugs.debian.org/759073
-Forwarded: no
-Last-Update: 2014-09-20
+From: Matthias Klose <doko@debian.org>
+Date: Thu, 20 Oct 2016 04:34:06 +0000
+Subject: wxpython3.0
 
---- twisted-14.0.0.orig/twisted/internet/wxreactor.py
-+++ twisted-14.0.0/twisted/internet/wxreactor.py
+---
+ twisted/internet/wxreactor.py | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/twisted/internet/wxreactor.py b/twisted/internet/wxreactor.py
+index 71e861a..6713de0 100644
+--- a/twisted/internet/wxreactor.py
++++ b/twisted/internet/wxreactor.py
 @@ -25,11 +25,11 @@ real applications.
  
  import Queue
@@ -21,7 +24,7 @@ Last-Update: 2014-09-20
  
  from twisted.python import log, runtime
  from twisted.internet import _threadedselect
-@@ -125,7 +125,7 @@ class WxReactor(_threadedselect.Threaded
+@@ -125,7 +125,7 @@ class WxReactor(_threadedselect.ThreadedSelectReactor):
          if not hasattr(self, "wxapp"):
              log.msg("registerWxApp() was not called on reactor, "
                      "registering my own wxApp instance.")

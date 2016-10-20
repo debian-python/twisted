@@ -1,6 +1,6 @@
-Description: Don't enclose IPs between double quotes in combined log
- This is a fix for upstream bug #7730, which restores the combined log
- format that was in place until version 14.0.0. See also
+From: Matthias Klose <doko@debian.org>
+Date: Thu, 20 Oct 2016 04:34:06 +0000
+Subject: combinedlog
 
  https://twistedmatrix.com/trac/ticket/7730
 
@@ -9,12 +9,16 @@ Author: Free Ekanayaka <freee@debian.org>
 Bug-Debian: https://bugs.debian.org/772629
 Forwarded: yes
 Last-Update: 2014-11-09
+---
+ twisted/web/http.py          |  2 +-
+ twisted/web/test/test_web.py | 16 ++++++++--------
+ 2 files changed, 9 insertions(+), 9 deletions(-)
 
-Index: b/twisted/web/http.py
-===================================================================
+diff --git a/twisted/web/http.py b/twisted/web/http.py
+index c7caba3..148fb86 100644
 --- a/twisted/web/http.py
 +++ b/twisted/web/http.py
-@@ -1911,7 +1911,7 @@ def combinedLogFormatter(timestamp, requ
+@@ -2143,7 +2143,7 @@ def combinedLogFormatter(timestamp, request):
      referrer = _escape(request.getHeader(b"referer") or b"-")
      agent = _escape(request.getHeader(b"user-agent") or b"-")
      line = (
@@ -23,11 +27,11 @@ Index: b/twisted/web/http.py
          u'%(code)d %(length)s "%(referrer)s" "%(agent)s"' % dict(
              ip=_escape(request.getClientIP() or b"-"),
              timestamp=timestamp,
-Index: b/twisted/web/test/test_web.py
-===================================================================
+diff --git a/twisted/web/test/test_web.py b/twisted/web/test/test_web.py
+index 6f10648..f2cb628 100644
 --- a/twisted/web/test/test_web.py
 +++ b/twisted/web/test/test_web.py
-@@ -1056,7 +1056,7 @@ class AccessLogTestsMixin(object):
+@@ -1185,7 +1185,7 @@ class AccessLogTestsMixin(object):
  
          self.assertEqual(
              # Client IP
@@ -36,7 +40,7 @@ Index: b/twisted/web/test/test_web.py
              # Some blanks we never fill in
              b'- - '
              # The current time (circa 1234567890)
-@@ -1156,7 +1156,7 @@ class CombinedLogFormatterTests(unittest
+@@ -1285,7 +1285,7 @@ class CombinedLogFormatterTests(unittest.TestCase):
  
          line = http.combinedLogFormatter(timestamp, request)
          self.assertEqual(
@@ -45,7 +49,7 @@ Index: b/twisted/web/test/test_web.py
              u'"POS\\x81 /dummy HTTP/1.0" 123 - "evil \\x83" "evil \\x84"',
              line)
  
-@@ -1248,7 +1248,7 @@ class LogEscapingTests(unittest.TestCase
+@@ -1377,7 +1377,7 @@ class LogEscapingTests(unittest.TestCase):
          self.site._logDateTime = "[%02d/%3s/%4d:%02d:%02d:%02d +0000]" % (
              25, 'Oct', 2004, 12, 31, 59)
          self.assertLogs(
@@ -54,7 +58,7 @@ Index: b/twisted/web/test/test_web.py
              b'"GET /dummy HTTP/1.0" 123 - "-" "-"\n')
  
  
-@@ -1260,7 +1260,7 @@ class LogEscapingTests(unittest.TestCase
+@@ -1389,7 +1389,7 @@ class LogEscapingTests(unittest.TestCase):
              25, 'Oct', 2004, 12, 31, 59)
          self.request.method = b'G"T'
          self.assertLogs(
@@ -63,7 +67,7 @@ Index: b/twisted/web/test/test_web.py
              b'"G\\"T /dummy HTTP/1.0" 123 - "-" "-"\n')
  
  
-@@ -1272,7 +1272,7 @@ class LogEscapingTests(unittest.TestCase
+@@ -1401,7 +1401,7 @@ class LogEscapingTests(unittest.TestCase):
              25, 'Oct', 2004, 12, 31, 59)
          self.request.uri = b'/dummy"withquote'
          self.assertLogs(
@@ -72,7 +76,7 @@ Index: b/twisted/web/test/test_web.py
              b'"GET /dummy\\"withquote HTTP/1.0" 123 - "-" "-"\n')
  
  
-@@ -1284,7 +1284,7 @@ class LogEscapingTests(unittest.TestCase
+@@ -1413,7 +1413,7 @@ class LogEscapingTests(unittest.TestCase):
              25, 'Oct', 2004, 12, 31, 59)
          self.request.clientproto = b'HT"P/1.0'
          self.assertLogs(
@@ -81,7 +85,7 @@ Index: b/twisted/web/test/test_web.py
              b'"GET /dummy HT\\"P/1.0" 123 - "-" "-"\n')
  
  
-@@ -1299,7 +1299,7 @@ class LogEscapingTests(unittest.TestCase
+@@ -1428,7 +1428,7 @@ class LogEscapingTests(unittest.TestCase):
              b'referer',
              b'http://malicious" ".website.invalid')
          self.assertLogs(
@@ -90,7 +94,7 @@ Index: b/twisted/web/test/test_web.py
              b'"GET /dummy HTTP/1.0" 123 - '
              b'"http://malicious\\" \\".website.invalid" "-"\n')
  
-@@ -1314,7 +1314,7 @@ class LogEscapingTests(unittest.TestCase
+@@ -1443,7 +1443,7 @@ class LogEscapingTests(unittest.TestCase):
          self.request.requestHeaders.addRawHeader(b'user-agent',
                                                   b'Malicious Web" Evil')
          self.assertLogs(
