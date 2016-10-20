@@ -1,12 +1,15 @@
-twisted (16.4.1-2ubuntu1~1.gbpaef4ec) UNRELEASED; urgency=medium
-
-  ** SNAPSHOT build @aef4ecf9295710eb9109fa455c22c2e5342c1f35 **
+twisted (16.4.1-2) unstable; urgency=medium
 
   * Add Vcs-Git and Vcs-Browser stanzas pointing to Alioth.
   * Don't remove Twisted.egg-info in the clean target, as it's part of
     the upstream source.
   * Point watch file to pypi.debian.ne.
   * Imported patches from patch-queue/master via gbp pq export.
+  * Imported patches from patch-queue/master via gbp pq export.
+  * Add lintian overrides for privacy-breach-google-adsense
+  * Strip raiser shared library in python3-twisted-bin
+  * Drop legacy XS-Python-Version control field
+  * Add .travis.yml from http://travis.debian.net.
 
  -- Free Ekanayaka <freee@debian.org>  Thu, 20 Oct 2016 04:43:26 +0000
 
