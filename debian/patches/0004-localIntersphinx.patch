@@ -3,7 +3,9 @@ Date: Fri, 21 Oct 2016 07:37:26 +0000
 Subject: localIntersphinx
 
 Use local copies of object.inv for building documentation.
-Doesn't need forwarding.
+
+Forwarded: not-needed
+Bug-Debian: https://bugs.debian.org/836169
 ---
  docs/conf.py | 4 ++--
  1 file changed, 2 insertions(+), 2 deletions(-)
