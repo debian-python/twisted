@@ -1,3 +1,4 @@
 wxpython3.0.patch
 combinedlog.patch
 sphinx-theme.diff
+0004-localIntersphinx.patch

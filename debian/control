@@ -3,12 +3,19 @@ Section: python
 Priority: optional
 Maintainer: Matthias Klose <doko@debian.org>
 Uploaders: Free Ekanayaka <freee@debian.org>
-Build-Depends: debhelper (>=7.0.50~), patch,
-  python-all-dev, python-all-dbg,
-  python-zope.interface-dbg (>= 4.0.2), python-setuptools,
-  dh-python,
-  python3-all-dev, python3-all-dbg,
-  python3-zope.interface (>= 4.0.2), python3-setuptools
+Build-Depends: debhelper (>=7.0.50~),
+               dh-python,
+               patch,
+               python-all-dev,
+               python-all-dbg,
+               python-zope.interface-dbg (>= 4.0.2),
+               python-setuptools,
+               python-doc,
+               python3-all-dev,
+               python3-all-dbg,
+               python3-zope.interface (>= 4.0.2),
+               python3-setuptools,
+               python3-doc
 Build-Depends-Indep: python3-sphinx
 Standards-Version: 3.9.8
 Homepage: https://github.com/waylan/Python-Markdown
