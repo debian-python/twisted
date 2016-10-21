@@ -4,14 +4,15 @@ twisted (16.4.1-2) unstable; urgency=medium
   * Don't remove Twisted.egg-info in the clean target, as it's part of
     the upstream source.
   * Point watch file to pypi.debian.ne.
-  * Imported patches from patch-queue/master via gbp pq export.
-  * Imported patches from patch-queue/master via gbp pq export.
   * Add lintian overrides for privacy-breach-google-adsense
   * Strip raiser shared library in python3-twisted-bin
   * Drop legacy XS-Python-Version control field
-  * Add .travis.yml from http://travis.debian.net.
+  * Use local copies of object.inv for building sphinx docs. Closes #836169.
+  * Fix insecure PYTHONPATH example. Closes #605190, #605192.
+  * Set Debian Python Modules Team as Maintaner, move Matthias and myself
+    to Uploaders.
 
- -- Free Ekanayaka <freee@debian.org>  Thu, 20 Oct 2016 04:43:26 +0000
+ -- Free Ekanayaka <freee@debian.org>  Fri, 21 Oct 2016 09:47:56 +0000
 
 twisted (16.4.1-1) unstable; urgency=medium
 

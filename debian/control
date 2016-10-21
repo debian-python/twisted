@@ -1,8 +1,9 @@
 Source: twisted
 Section: python
 Priority: optional
-Maintainer: Matthias Klose <doko@debian.org>
-Uploaders: Free Ekanayaka <freee@debian.org>
+Maintainer: Debian Python Modules Team <python-modules-team@lists.alioth.debian.org>
+Uploaders: Matthias Klose <doko@debian.org>,
+           Free Ekanayaka <freee@debian.org>
 Build-Depends: debhelper (>=7.0.50~),
                dh-python,
                patch,
@@ -25,12 +26,17 @@ Vcs-Git: https://anonscm.debian.org/git/python-modules/packages/twisted.git
 Package: python3-twisted
 Architecture: all
 Depends: ${python3:Depends},
-  python3-twisted-bin (>= ${source:Version}),
-  python3-zope.interface (>= 4.0.2),
-  ${misc:Depends},
-  python3-openssl, python3-service-identity
-Suggests: python3-tk, python3-gtk2, python3-glade2, python3-qt4, python3-wxgtk2.8
-Recommends: python3-pam, python3-serial
+         python3-twisted-bin (>= ${source:Version}),
+         python3-zope.interface (>= 4.0.2),
+         ${misc:Depends},
+         python3-openssl, python3-service-identity
+Suggests: python3-tk,
+          python3-gtk2,
+          python3-glade2,
+          python3-qt4,
+          python3-wxgtk2.8
+Recommends: python3-pam,
+            python3-serial
 Provides: ${python:Provides}
 Conflicts: python3-twisted-experimental
 Replaces: python3-twisted-experimental
@@ -42,7 +48,9 @@ Description: Event-based framework for internet applications
 Package: python3-twisted-bin
 Architecture: any
 Multi-Arch: same
-Depends: ${python3:Depends}, ${shlibs:Depends}, ${misc:Depends}
+Depends: ${python3:Depends},
+         ${shlibs:Depends},
+         ${misc:Depends}
 Provides: ${python:Provides}
 Suggests: python3-twisted-bin-dbg
 Description: Event-based framework for internet applications
@@ -55,7 +63,10 @@ Priority: extra
 Section: debug
 Architecture: any
 Multi-Arch: same
-Depends: python3-zope.interface-dbg, python3-twisted-bin (= ${binary:Version}), python3-dbg, ${shlibs:Depends}, ${misc:Depends}
+Depends: python3-zope.interface-dbg,
+         python3-twisted-bin (= ${binary:Version}),
+         python3-dbg, ${shlibs:Depends},
+         ${misc:Depends}
 Description: Event-based framework for internet applications (debug extension)
  It includes a web server, a telnet server, a multiplayer RPG engine, a 
  generic client and server for remote object access, and APIs for creating 
@@ -66,7 +77,9 @@ Description: Event-based framework for internet applications (debug extension)
 Package: python-twisted-bin
 Architecture: any
 Multi-Arch: same
-Depends: ${python:Depends}, ${shlibs:Depends}, ${misc:Depends}
+Depends: ${python:Depends},
+         ${shlibs:Depends},
+         ${misc:Depends}
 Provides: ${python:Provides}
 Suggests: python-twisted-bin-dbg
 Replaces: python-twisted-runner (<< 15.5.0-3),
@@ -81,8 +94,9 @@ Section: debug
 Architecture: any
 Multi-Arch: same
 Depends: python-twisted-bin (= ${binary:Version}),
-  python-zope.interface-dbg, python-dbg,
-  ${shlibs:Depends}, ${misc:Depends}
+         python-zope.interface-dbg, python-dbg,
+         ${shlibs:Depends},
+         ${misc:Depends}
 Replaces: python-twisted-runner-dbg (<< 15.5.0-3),
 Description: Event-based framework for internet applications (debug extension)
  It includes a web server, a telnet server, a multiplayer RPG engine, a 
@@ -94,29 +108,36 @@ Description: Event-based framework for internet applications (debug extension)
 Package: python-twisted-core
 Architecture: all
 Depends: python-twisted-bin (>= ${source:Version}),
-  python-zope.interface (>= 4.0.2),
-  ${python:Depends}, ${misc:Depends},
-  python-openssl, python-service-identity
-Suggests: python-tk, python-gtk2, python-glade2, python-qt3, python-wxgtk3.0
-Recommends: python-pam, python-serial
+         python-zope.interface (>= 4.0.2),
+         ${python:Depends},
+         ${misc:Depends},
+         python-openssl,
+         python-service-identity
+Suggests: python-tk,
+          python-gtk2,
+          python-glade2,
+          python-qt3,
+          python-wxgtk3.0
+Recommends: python-pam,
+            python-serial
 Provides: ${python:Provides}
 Replaces: python-twisted-conch (<< 1:15.5.0-3),
-  python-twisted-mail (<< 15.5.0-3),
-  python-twisted-names (<< 15.5.0-3),
-  python-twisted-news (<< 15.5.0-3),
-  python-twisted-runner (<< 15.5.0-3),
-  python-twisted-web (<< 15.5.0-3),
-  python-twisted-words (<< 15.5.0-3)
+          python-twisted-mail (<< 15.5.0-3),
+          python-twisted-names (<< 15.5.0-3),
+          python-twisted-news (<< 15.5.0-3),
+          python-twisted-runner (<< 15.5.0-3),
+          python-twisted-web (<< 15.5.0-3),
+          python-twisted-words (<< 15.5.0-3)
 Breaks: python-twisted-conch (<< 1:15.5.0-3),
-  python-twisted-mail (<< 15.5.0-3),
-  python-twisted-names (<< 15.5.0-3),
-  python-twisted-news (<< 15.5.0-3),
-  python-twisted-runner (<< 15.5.0-3),
-  python-twisted-web (<< 15.5.0-3),
-  python-twisted-words (<< 15.5.0-3),
-  torbrowser-launcher (<= 0.2.0-1~),
-  python-scrapy (<< 1.0.0-1~),
-  txsocksx (<< 1.13.0.4-1~)
+        python-twisted-mail (<< 15.5.0-3),
+        python-twisted-names (<< 15.5.0-3),
+        python-twisted-news (<< 15.5.0-3),
+        python-twisted-runner (<< 15.5.0-3),
+        python-twisted-web (<< 15.5.0-3),
+        python-twisted-words (<< 15.5.0-3),
+        torbrowser-launcher (<= 0.2.0-1~),
+        python-scrapy (<< 1.0.0-1~),
+        txsocksx (<< 1.13.0.4-1~)
 Description: Event-based framework for internet applications
  It includes a web server, a telnet server, a multiplayer RPG engine, a
  generic client and server for remote object access, and APIs for creating
@@ -148,8 +169,10 @@ Description: Event-based framework for internet applications
 Package: python-twisted-conch
 Architecture: all
 Depends: python-twisted-core (>= ${source:Version}), 
-  python-crypto (>= 2.0.1+dfsg1-1.1), python-pyasn1,
-  ${python:Depends}, ${misc:Depends}
+         python-crypto (>= 2.0.1+dfsg1-1.1),
+         python-pyasn1,
+         ${python:Depends},
+         ${misc:Depends}
 Provides: conch, ${python:Provides}
 Description: twisted dummy package for Twisted SSH Implementation
  All the code has been moved to python-twisted-core, this package
@@ -159,8 +182,9 @@ Description: twisted dummy package for Twisted SSH Implementation
 Package: python-twisted-mail
 Architecture: all
 Depends: python-twisted-core (>= ${source:Version}),
-  python-openssl,
-  ${python:Depends}, ${misc:Depends}
+         python-openssl,
+         ${python:Depends},
+         ${misc:Depends}
 Recommends: python-twisted-names
 Description: twisted dummy package for SMTP, IMAP and POP protocol implementation
  All the code has been moved to python-twisted-core, this package
@@ -170,7 +194,8 @@ Description: twisted dummy package for SMTP, IMAP and POP protocol implementatio
 Package: python-twisted-names
 Architecture: all
 Depends: python-twisted-core (>= ${source:Version}),
-  ${python:Depends}, ${misc:Depends}
+         ${python:Depends},
+         ${misc:Depends}
 Description: twisted package for DNS protocol implementation
  All the code has been moved to python-twisted-core, this package
  contains only documentation and is going to be removed.
@@ -179,7 +204,8 @@ Description: twisted package for DNS protocol implementation
 Package: python-twisted-news
 Architecture: all
 Depends: python-twisted-core (>= ${source:Version}),
-  ${python:Depends}, ${misc:Depends}
+         ${python:Depends},
+         ${misc:Depends}
 Description: twisted dummy package for NNTP protocol implementation
  All the code has been moved to python-twisted-core, this package
  contains only documentation and is going to be removed.
@@ -189,7 +215,9 @@ Package: python-twisted-runner
 Architecture: any
 Multi-Arch: same
 Depends: python-twisted-core (>= ${source:Version}),
-  ${python:Depends}, ${shlibs:Depends}, ${misc:Depends}
+         ${python:Depends},
+         ${shlibs:Depends},
+         ${misc:Depends}
 Provides: ${python:Provides}
 Suggests: python-twisted-runner-dbg
 Description: twisted dummy package for process management
@@ -203,8 +231,9 @@ Priority: extra
 Architecture: any
 Multi-Arch: same
 Depends: python-twisted-runner (= ${binary:Version}),
-  python-dbg,
-  ${shlibs:Depends}, ${misc:Depends}
+         python-dbg,
+         ${shlibs:Depends},
+         ${misc:Depends}
 Description: twisted dummy package for process management
  All the code has been moved to python-twisted-bin-dbg, this package
  contains only documentation and is going to be removed.
@@ -213,7 +242,8 @@ Description: twisted dummy package for process management
 Package: python-twisted-web
 Architecture: all
 Depends: python-twisted-core (>= ${source:Version}),
-  ${python:Depends}, ${misc:Depends}
+         ${python:Depends},
+         ${misc:Depends}
 Description: twisted dummy package for HTTP protocol implementation
  All the code has been moved to python-twisted-core, this package
  contains only documentation and is going to be removed.
@@ -222,8 +252,9 @@ Description: twisted dummy package for HTTP protocol implementation
 Package: python-twisted-words
 Architecture: all
 Depends: python-twisted-core (>= ${source:Version}),
-  python-openssl,
-  ${python:Depends}, ${misc:Depends}
+         python-openssl,
+         ${python:Depends},
+         ${misc:Depends}
 Description: twisted dummy package for Chat and Instant Messaging
  All the code has been moved to python-twisted-core, this package
  contains only documentation and is going to be removed.
@@ -234,7 +265,8 @@ Section: doc
 Priority: extra
 Architecture: all
 Multi-Arch: foreign
-Depends: ${misc:Depends}, ${sphinxdoc:Depends}
+Depends: ${misc:Depends},
+         ${sphinxdoc:Depends}
 Suggests: python-twisted
 Recommends: www-browser | postscript-viewer | pdf-viewer
 Description: Official documentation of Twisted
@@ -249,7 +281,8 @@ Package: python-twisted
 Architecture: all
 Priority: extra
 Depends: python-twisted-core (>= ${source:Version}),
-  ${python:Depends}, ${misc:Depends}
+         ${python:Depends},
+         ${misc:Depends}
 Provides: ${python:Provides}
 Description: Event-based framework for internet applications (dependency package)
  This is a dependency package that depends on the twisted core library and
