@@ -1,3 +1,11 @@
+twisted (16.4.1-3) unstable; urgency=medium
+
+  * Bump debhelper compat to 9
+  * Fix Closes syntax in changelog
+  * Mark python-twisted-core as Multi-Arch: foreign
+
+ -- Free Ekanayaka <freee@debian.org>  Thu, 27 Oct 2016 17:17:43 +0000
+
 twisted (16.4.1-2) unstable; urgency=medium
 
   * Add Vcs-Git and Vcs-Browser stanzas pointing to Alioth.
