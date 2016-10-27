@@ -107,6 +107,7 @@ Description: Event-based framework for internet applications (debug extension)
 
 Package: python-twisted-core
 Architecture: all
+Multi-Arch: foreign
 Depends: python-twisted-bin (>= ${source:Version}),
          python-zope.interface (>= 4.0.2),
          ${python:Depends},
