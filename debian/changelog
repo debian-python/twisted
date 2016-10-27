@@ -7,8 +7,8 @@ twisted (16.4.1-2) unstable; urgency=medium
   * Add lintian overrides for privacy-breach-google-adsense
   * Strip raiser shared library in python3-twisted-bin
   * Drop legacy XS-Python-Version control field
-  * Use local copies of object.inv for building sphinx docs. Closes #836169.
-  * Fix insecure PYTHONPATH example. Closes #605190, #605192.
+  * Use local copies of object.inv for building sphinx docs. Closes: #836169.
+  * Fix insecure PYTHONPATH example. Closes: #605190, #605192.
   * Set Debian Python Modules Team as Maintaner, move Matthias and myself
     to Uploaders.
 
