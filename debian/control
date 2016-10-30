@@ -194,6 +194,7 @@ Description: twisted dummy package for SMTP, IMAP and POP protocol implementatio
 
 Package: python-twisted-names
 Architecture: all
+Multi-Arch: foreign
 Depends: python-twisted-core (>= ${source:Version}),
          ${python:Depends},
          ${misc:Depends}
@@ -204,6 +205,7 @@ Description: twisted package for DNS protocol implementation
 
 Package: python-twisted-news
 Architecture: all
+Multi-Arch: foreign
 Depends: python-twisted-core (>= ${source:Version}),
          ${python:Depends},
          ${misc:Depends}
@@ -213,8 +215,8 @@ Description: twisted dummy package for NNTP protocol implementation
  See https://twistedmatrix.com/trac/ticket/7964.
 
 Package: python-twisted-runner
-Architecture: any
-Multi-Arch: same
+Architecture: all
+Multi-Arch: foreign
 Depends: python-twisted-core (>= ${source:Version}),
          ${python:Depends},
          ${shlibs:Depends},
@@ -230,7 +232,7 @@ Package: python-twisted-runner-dbg
 Section: debug
 Priority: extra
 Architecture: any
-Multi-Arch: same
+Multi-Arch: foreign
 Depends: python-twisted-runner (= ${binary:Version}),
          python-dbg,
          ${shlibs:Depends},
@@ -242,6 +244,7 @@ Description: twisted dummy package for process management
 
 Package: python-twisted-web
 Architecture: all
+Multi-Arch: foreign
 Depends: python-twisted-core (>= ${source:Version}),
          ${python:Depends},
          ${misc:Depends}
