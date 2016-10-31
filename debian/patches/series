@@ -3,3 +3,4 @@
 0003-sphinx-theme.patch
 0004-localIntersphinx.patch
 0005-insecure-pythonpath.patch
+0006-fix-sphinx-import-path.patch

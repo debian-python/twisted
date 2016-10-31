@@ -4,13 +4,13 @@ Subject: wxpython3.0
 
 Fix imports from the wx package.
 ---
- twisted/internet/wxreactor.py | 6 +++---
+ src/twisted/internet/wxreactor.py | 6 +++---
  1 file changed, 3 insertions(+), 3 deletions(-)
 
-diff --git a/twisted/internet/wxreactor.py b/twisted/internet/wxreactor.py
+diff --git a/src/twisted/internet/wxreactor.py b/src/twisted/internet/wxreactor.py
 index 71e861a..6713de0 100644
---- a/twisted/internet/wxreactor.py
-+++ b/twisted/internet/wxreactor.py
+--- a/src/twisted/internet/wxreactor.py
++++ b/src/twisted/internet/wxreactor.py
 @@ -25,11 +25,11 @@ real applications.
  
  import Queue
