@@ -231,7 +231,7 @@ Description: twisted dummy package for process management
 Package: python-twisted-runner-dbg
 Section: debug
 Priority: extra
-Architecture: any
+Architecture: all
 Multi-Arch: foreign
 Depends: python-twisted-runner (= ${binary:Version}),
          python-dbg,

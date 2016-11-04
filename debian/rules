@@ -195,6 +195,7 @@ endif
 	dh_installdeb -i
 	dh_gencontrol -ppython-twisted-core -ppython-twisted-mail \
 	    -ppython-twisted-names -ppython-twisted-news -ppython-twisted-web \
+	    -ppython-twisted-runner -ppython-twisted-runner-dbg \
             -ppython-twisted-words -ptwisted-doc -ppython-twisted \
 	    -ppython3-twisted
 	: # Add the epoch to python-twisted-conch, for upgrades
@@ -214,11 +215,6 @@ binary-arch: build-arch install
 	rm -rf debian/python-twisted-bin-dbg/usr/share/doc/python-twisted-bin-dbg
 	ln -s python-twisted-bin \
 	    debian/python-twisted-bin-dbg/usr/share/doc/python-twisted-bin-dbg
-
-	dh_strip -ppython-twisted-runner --dbg-package=python-twisted-runner-dbg
-	rm -rf debian/python-twisted-runner-dbg/usr/share/doc/python-twisted-runner-dbg
-	ln -s python-twisted-runner \
-            debian/python-twisted-runner-dbg/usr/share/doc/python-twisted-runner-dbg
 
 	dh_strip -ppython3-twisted-bin --dbg-package=python3-twisted-bin-dbg
 	rm -rf debian/python3-twisted-bin-dbg/usr/share/doc/python3-twisted-bin-dbg
