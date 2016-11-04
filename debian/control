@@ -11,11 +11,15 @@ Build-Depends: debhelper (>=7.0.50~),
                python-all-dbg,
                python-zope.interface-dbg (>= 4.0.2),
                python-setuptools,
+               python-incremental,
+               python-constantly,
                python-doc,
                python3-all-dev,
                python3-all-dbg,
                python3-zope.interface (>= 4.0.2),
                python3-setuptools,
+               python3-incremental,
+               python3-constantly,
                python3-doc
 Build-Depends-Indep: python3-sphinx
 Standards-Version: 3.9.8
