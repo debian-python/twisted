@@ -4,3 +4,4 @@
 0004-localIntersphinx.patch
 0005-insecure-pythonpath.patch
 0006-fix-sphinx-import-path.patch
+0007-openssl-1.1.0.patch
