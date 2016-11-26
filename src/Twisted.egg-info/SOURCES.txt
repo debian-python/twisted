@@ -400,6 +400,7 @@ docs/historic/Quotes/Twisted-16.2
 docs/historic/Quotes/Twisted-16.3
 docs/historic/Quotes/Twisted-16.4
 docs/historic/Quotes/Twisted-16.5
+docs/historic/Quotes/Twisted-16.6
 docs/historic/Quotes/Twisted-2.0
 docs/historic/Quotes/Twisted-2.1
 docs/historic/Quotes/Twisted-2.2
@@ -589,6 +590,7 @@ src/Twisted.egg-info/not-zip-safe
 src/Twisted.egg-info/requires.txt
 src/Twisted.egg-info/top_level.txt
 src/twisted/__init__.py
+src/twisted/__main__.py
 src/twisted/_version.py
 src/twisted/copyright.py
 src/twisted/plugin.py
@@ -1235,6 +1237,7 @@ src/twisted/test/test_lockfile.py
 src/twisted/test/test_log.py
 src/twisted/test/test_logfile.py
 src/twisted/test/test_loopback.py
+src/twisted/test/test_main.py
 src/twisted/test/test_memcache.py
 src/twisted/test/test_modules.py
 src/twisted/test/test_monkey.py
