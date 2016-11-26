@@ -1,3 +1,12 @@
+twisted (16.6.0-1) unstable; urgency=medium
+
+  * New upstream version 16.6.0
+  * Use 'python -m twisted.trial' instead of 'trial' to invoke tests
+  * Add sort-option-keys patch to fix failing test
+  * Fix test writing to stderr
+
+ -- Free Ekanayaka <freee@debian.org>  Sat, 26 Nov 2016 06:24:48 +0000
+
 twisted (16.5.0-1) unstable; urgency=medium
 
   * New upstream version 16.5.0
