@@ -174,6 +174,10 @@ binary-indep: build-indep build-doc install
 	cp -a docs/_build/html debian/twisted-doc/usr/share/doc/twisted-doc/.
 	dh_sphinxdoc -ptwisted-doc
 
+	rm -rf debian/python-twisted-runner-dbg/usr/share/doc/python-twisted-runner-dbg
+	ln -s python-twisted-runner \
+	    debian/python-twisted-runner-dbg/usr/share/doc/python-twisted-runner-dbg
+
 ifeq ($(with_docs),yes)
 	cp -ua apidocs debian/twisted-doc/usr/share/doc/twisted-doc/
 	# Replace links to Twisted website API doc by links to the local doc. We
