@@ -1,3 +1,10 @@
+twisted (16.6.0-2) unstable; urgency=medium
+
+  * Make /usr/share/doc/python-twisted-runner-dbg a
+    symlink to the non-dbg docs (Closes: #847233).
+
+ -- Free Ekanayaka <freee@debian.org>  Sat, 10 Dec 2016 08:16:41 +0000
+
 twisted (16.6.0-1) unstable; urgency=medium
 
   * New upstream version 16.6.0
