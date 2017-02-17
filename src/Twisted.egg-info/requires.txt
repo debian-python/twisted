@@ -1,6 +1,7 @@
 zope.interface >= 3.6.0
 constantly >= 15.1
 incremental >= 16.10.1
+Automat >= 0.3.0
 
 [all_non_platform]
 pyopenssl >= 16.0.0

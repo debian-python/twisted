@@ -2,6 +2,8 @@
 # Copyright (c) Twisted Matrix Laboratories.
 # See LICENSE for details.
 
+# pylint: disable=I0011,C0103,C9302,W9401,W9402
+
 """
 Setuptools convenience functionality.
 
@@ -132,17 +134,17 @@ _EXTRAS_REQUIRE = {
 # Scripts provided by Twisted on Python 2 and 3.
 _CONSOLE_SCRIPTS = [
     "ckeygen = twisted.conch.scripts.ckeygen:run",
+    "cftp = twisted.conch.scripts.cftp:run",
+    "conch = twisted.conch.scripts.conch:run",
+    "pyhtmlizer = twisted.scripts.htmlizer:run",
+    "tkconch = twisted.conch.scripts.tkconch:run",
     "trial = twisted.scripts.trial:run",
     "twist = twisted.application.twist._twist:Twist.main",
     "twistd = twisted.scripts.twistd:run",
     ]
 # Scripts provided by Twisted on Python 2 only.
 _CONSOLE_SCRIPTS_PY2 = [
-    "cftp = twisted.conch.scripts.cftp:run",
-    "conch = twisted.conch.scripts.conch:run",
     "mailmail = twisted.mail.scripts.mailmail:run",
-    "pyhtmlizer = twisted.scripts.htmlizer:run",
-    "tkconch = twisted.conch.scripts.tkconch:run",
     ]
 
 if not _PY3:
@@ -150,7 +152,7 @@ if not _PY3:
 
 
 
-class ConditionalExtension(Extension):
+class ConditionalExtension(Extension, object):
     """
     An extension module that will only be compiled if certain conditions are
     met.
@@ -227,6 +229,7 @@ def getSetupArgs(extensions=_EXTENSIONS):
 
     requirements.append("constantly >= 15.1")
     requirements.append("incremental >= 16.10.1")
+    requirements.append("Automat >= 0.3.0")
 
     arguments.update(dict(
         packages=find_packages("src"),
@@ -247,7 +250,7 @@ def getSetupArgs(extensions=_EXTENSIONS):
 
 
 
-class BuildPy3(build_py):
+class BuildPy3(build_py, object):
     """
     A version of build_py that doesn't install the modules that aren't yet
     ported to Python 3.
@@ -264,7 +267,7 @@ class BuildPy3(build_py):
 ## Helpers and distutil tweaks
 
 
-class build_ext_twisted(build_ext.build_ext):
+class build_ext_twisted(build_ext.build_ext, object):
     """
     Allow subclasses to easily detect and customize Extensions to
     build at install-time.
@@ -361,14 +364,6 @@ def _checkCPython(sys=sys, platform=platform):
 _isCPython = _checkCPython()
 
 notPortedModules = [
-    "twisted.conch.client.connect",
-    "twisted.conch.client.direct",
-    "twisted.conch.test.test_cftp",
-    "twisted.conch.test.test_conch",
-    "twisted.conch.test.test_manhole",
-    "twisted.conch.ui.__init__",
-    "twisted.conch.ui.ansi",
-    "twisted.conch.ui.tkvt100",
     "twisted.internet._threadedselect",
     "twisted.internet.glib2reactor",
     "twisted.internet.gtk2reactor",
@@ -414,8 +409,6 @@ notPortedModules = [
     "twisted.news.test.test_database",
     "twisted.news.test.test_news",
     "twisted.news.test.test_nntp",
-    "twisted.plugins.twisted_conch",
-    "twisted.plugins.twisted_ftp",
     "twisted.plugins.twisted_inet",
     "twisted.plugins.twisted_mail",
     "twisted.plugins.twisted_names",
@@ -425,7 +418,6 @@ notPortedModules = [
     "twisted.plugins.twisted_socks",
     "twisted.plugins.twisted_words",
     "twisted.protocols.finger",
-    "twisted.protocols.ftp",
     "twisted.protocols.ident",
     "twisted.protocols.mice.__init__",
     "twisted.protocols.mice.mouseman",
@@ -440,14 +432,10 @@ notPortedModules = [
     "twisted.python.shortcut",
     "twisted.python.test.cmodulepullpipe",
     "twisted.python.test.test_fakepwd",
-    "twisted.python.test.test_htmlizer",
     "twisted.python.test.test_pydoctor",
     "twisted.python.test.test_release",
     "twisted.python.test.test_win32",
-    "twisted.scripts.htmlizer",
-    "twisted.spread.test.test_pbfailure",
     "twisted.tap.__init__",
-    "twisted.tap.ftp",
     "twisted.tap.portforward",
     "twisted.tap.socks",
     "twisted.test.crash_test_dummy",
@@ -455,29 +443,11 @@ notPortedModules = [
     "twisted.test.myrebuilder2",
     "twisted.test.test_finger",
     "twisted.test.test_formmethod",
-    "twisted.test.test_ftp",
-    "twisted.test.test_ftp_options",
     "twisted.test.test_hook",
     "twisted.test.test_ident",
     "twisted.test.test_rebuild",
     "twisted.test.test_shortcut",
     "twisted.test.test_strerror",
-    "twisted.trial._dist.__init__",
-    "twisted.trial._dist.distreporter",
-    "twisted.trial._dist.disttrial",
-    "twisted.trial._dist.managercommands",
-    "twisted.trial._dist.options",
-    "twisted.trial._dist.test.__init__",
-    "twisted.trial._dist.test.test_distreporter",
-    "twisted.trial._dist.test.test_disttrial",
-    "twisted.trial._dist.test.test_options",
-    "twisted.trial._dist.test.test_worker",
-    "twisted.trial._dist.test.test_workerreporter",
-    "twisted.trial._dist.test.test_workertrial",
-    "twisted.trial._dist.worker",
-    "twisted.trial._dist.workercommands",
-    "twisted.trial._dist.workerreporter",
-    "twisted.trial._dist.workertrial",
     "twisted.web.distrib",
     "twisted.web.domhelpers",
     "twisted.web.microdom",
