@@ -6,7 +6,6 @@ Fix flaky twisted.test.test_main.MainTests.test_twisted which fails
 if options are not in the same order.
 
 See https://twistedmatrix.com/trac/attachment/ticket/8923.
-
 ---
  src/twisted/python/usage.py | 2 +-
  1 file changed, 1 insertion(+), 1 deletion(-)

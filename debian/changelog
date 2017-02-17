@@ -1,3 +1,9 @@
+twisted (17.1.0-1) experimental; urgency=medium
+
+  * New upstream version 17.1.0
+
+ -- Free Ekanayaka <freee@debian.org>  Fri, 17 Feb 2017 10:31:45 +0000
+
 twisted (16.6.0-2) unstable; urgency=medium
 
   * Make /usr/share/doc/python-twisted-runner-dbg a
