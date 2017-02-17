@@ -401,6 +401,7 @@ docs/historic/Quotes/Twisted-16.3
 docs/historic/Quotes/Twisted-16.4
 docs/historic/Quotes/Twisted-16.5
 docs/historic/Quotes/Twisted-16.6
+docs/historic/Quotes/Twisted-17.1
 docs/historic/Quotes/Twisted-2.0
 docs/historic/Quotes/Twisted-2.1
 docs/historic/Quotes/Twisted-2.2
@@ -614,9 +615,11 @@ src/twisted/application/service.py
 src/twisted/application/strports.py
 src/twisted/application/runner/__init__.py
 src/twisted/application/runner/_exit.py
+src/twisted/application/runner/_pidfile.py
 src/twisted/application/runner/_runner.py
 src/twisted/application/runner/test/__init__.py
 src/twisted/application/runner/test/test_exit.py
+src/twisted/application/runner/test/test_pidfile.py
 src/twisted/application/runner/test/test_runner.py
 src/twisted/application/test/__init__.py
 src/twisted/application/test/test_internet.py
@@ -739,10 +742,13 @@ src/twisted/internet/__init__.py
 src/twisted/internet/_baseprocess.py
 src/twisted/internet/_dumbwin32proc.py
 src/twisted/internet/_glibbase.py
+src/twisted/internet/_idna.py
 src/twisted/internet/_newtls.py
 src/twisted/internet/_pollingfile.py
 src/twisted/internet/_posixserialport.py
 src/twisted/internet/_posixstdio.py
+src/twisted/internet/_producer_helpers.py
+src/twisted/internet/_resolver.py
 src/twisted/internet/_signals.py
 src/twisted/internet/_sslverify.py
 src/twisted/internet/_threadedselect.py
@@ -842,6 +848,7 @@ src/twisted/internet/test/test_posixbase.py
 src/twisted/internet/test/test_posixprocess.py
 src/twisted/internet/test/test_process.py
 src/twisted/internet/test/test_protocol.py
+src/twisted/internet/test/test_resolver.py
 src/twisted/internet/test/test_serialport.py
 src/twisted/internet/test/test_sigchld.py
 src/twisted/internet/test/test_socket.py
@@ -911,7 +918,6 @@ src/twisted/mail/scripts/mailmail.py
 src/twisted/mail/test/__init__.py
 src/twisted/mail/test/pop3testserver.py
 src/twisted/mail/test/rfc822.message
-src/twisted/mail/test/server.pem
 src/twisted/mail/test/test_bounce.py
 src/twisted/mail/test/test_imap.py
 src/twisted/mail/test/test_mail.py
@@ -1028,7 +1034,6 @@ src/twisted/protocols/shoutcast.py
 src/twisted/protocols/sip.py
 src/twisted/protocols/socks.py
 src/twisted/protocols/stateful.py
-src/twisted/protocols/telnet.py
 src/twisted/protocols/tls.py
 src/twisted/protocols/wire.py
 src/twisted/protocols/haproxy/__init__.py
