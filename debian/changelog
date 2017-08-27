@@ -1,3 +1,9 @@
+twisted (17.5.0-1) unstable; urgency=medium
+
+  * New upstream version 17.5.0
+
+ -- Free Ekanayaka <freee@debian.org>  Sun, 27 Aug 2017 09:24:58 +0000
+
 twisted (17.1.0-1) experimental; urgency=medium
 
   * New upstream version 17.1.0
