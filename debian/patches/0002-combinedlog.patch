@@ -13,10 +13,10 @@ Bug-Debian https://bugs.debian.org/772629
  2 files changed, 9 insertions(+), 9 deletions(-)
 
 diff --git a/src/twisted/web/http.py b/src/twisted/web/http.py
-index 2bb9756..75266ed 100644
+index cbef2ab..35e7229 100644
 --- a/src/twisted/web/http.py
 +++ b/src/twisted/web/http.py
-@@ -2296,7 +2296,7 @@ def combinedLogFormatter(timestamp, request):
+@@ -2472,7 +2472,7 @@ def combinedLogFormatter(timestamp, request):
      referrer = _escape(request.getHeader(b"referer") or b"-")
      agent = _escape(request.getHeader(b"user-agent") or b"-")
      line = (
