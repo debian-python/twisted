@@ -77,8 +77,7 @@ install-python%: install-prereq
 	dh_movefiles -ppython-twisted-bin \
 	  --sourcedir=debian/python-twisted-core \
 	    $(call py_libdir,$*)/twisted/python/_sendmsg.so \
-	    $(call py_libdir,$*)/twisted/test/raiser.so \
-	    $(call py_libdir,$*)/twisted/runner/portmap.so
+	    $(call py_libdir,$*)/twisted/test/raiser.so
 
 	: # python-twisted-bin-dbg
 	python$*-dbg setup.py install --root=debian/python-twisted-bin-dbg --no-compile --install-layout=deb
