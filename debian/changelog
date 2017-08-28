@@ -1,6 +1,12 @@
 twisted (17.5.0-1) unstable; urgency=medium
 
   * New upstream version 17.5.0
+  * Drop unused patches
+  * Refresh 0002-combinedlog.patch
+  * Add new build-dependency on Python hyperlink
+  * Drop deprecated portmap.so (see upstream's #8464)
+  * Bump build dependency on Python automat (>= 0.6.0)
+  * Add patches for failing tests
 
  -- Free Ekanayaka <freee@debian.org>  Sun, 27 Aug 2017 09:24:58 +0000
 
