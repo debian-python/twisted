@@ -14,6 +14,7 @@ Build-Depends: debhelper (>=7.0.50~),
                python-incremental,
                python-constantly,
                python-automat,
+               python-hyperlink,
                python-doc,
                python3-all-dev,
                python3-all-dbg,
@@ -22,6 +23,7 @@ Build-Depends: debhelper (>=7.0.50~),
                python3-incremental,
                python3-constantly,
                python3-automat,
+               python3-hyperlink,
                python3-doc
 Build-Depends-Indep: python3-sphinx
 Standards-Version: 3.9.8
