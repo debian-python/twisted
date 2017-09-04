@@ -1,3 +1,9 @@
+twisted (17.5.0-2) unstable; urgency=medium
+
+  * Make autopkgtest depend on setuptools
+
+ -- Free Ekanayaka <freee@debian.org>  Mon, 04 Sep 2017 08:41:29 +0000
+
 twisted (17.5.0-1) unstable; urgency=medium
 
   * New upstream version 17.5.0
