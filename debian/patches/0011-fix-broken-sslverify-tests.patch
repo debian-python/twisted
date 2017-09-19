@@ -6,11 +6,11 @@ Subject: fix-broken-sslverify-tests
  src/twisted/test/test_sslverify.py | 4 +++-
  1 file changed, 3 insertions(+), 1 deletion(-)
 
-diff --git a/src/twisted/test/test_sslverify.py b/src/twisted/test/test_sslverify.py
-index c7cfc4f..2c02646 100644
+Index: b/src/twisted/test/test_sslverify.py
+===================================================================
 --- a/src/twisted/test/test_sslverify.py
 +++ b/src/twisted/test/test_sslverify.py
-@@ -1676,7 +1676,7 @@ class TrustRootTests(unittest.TestCase):
+@@ -1678,7 +1678,7 @@ class TrustRootTests(unittest.TestCase):
  
          # Some combination of OpenSSL and PyOpenSSL is bad at reporting errors.
          err = cProto.wrappedProtocol.lostReason.value
@@ -19,7 +19,7 @@ index c7cfc4f..2c02646 100644
  
  
      def test_trustRootSpecificCertificate(self):
-@@ -1696,6 +1696,8 @@ class TrustRootTests(unittest.TestCase):
+@@ -1698,6 +1698,8 @@ class TrustRootTests(unittest.TestCase):
          self.assertEqual(cProto.wrappedProtocol.data,
                           sProto.wrappedProtocol.greeting)
  

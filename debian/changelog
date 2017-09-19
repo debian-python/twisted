@@ -1,3 +1,10 @@
+twisted (17.9.0~rc1-1) unstable; urgency=medium
+
+  * New upstream release candidate 17.9.0.
+  * Bump debhelper and standards version.
+
+ -- Matthias Klose <doko@debian.org>  Tue, 19 Sep 2017 16:42:41 +0200
+
 twisted (17.5.0-2) unstable; urgency=medium
 
   * Make autopkgtest depend on setuptools

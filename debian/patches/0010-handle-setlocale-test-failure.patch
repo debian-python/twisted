@@ -8,11 +8,11 @@ when running in a container).
  src/twisted/conch/test/test_cftp.py | 6 ++++--
  1 file changed, 4 insertions(+), 2 deletions(-)
 
-diff --git a/src/twisted/conch/test/test_cftp.py b/src/twisted/conch/test/test_cftp.py
-index d24714e..01c7630 100644
+Index: b/src/twisted/conch/test/test_cftp.py
+===================================================================
 --- a/src/twisted/conch/test/test_cftp.py
 +++ b/src/twisted/conch/test/test_cftp.py
-@@ -200,8 +200,10 @@ class ListingTests(TestCase):
+@@ -192,8 +192,10 @@ class ListingTests(TestCase):
              locale.setlocale(locale.LC_ALL, "es_AR.UTF8")
          except locale.Error:
              test_localeIndependent.skip = "The es_AR.UTF8 locale is not installed."

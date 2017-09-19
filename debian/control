@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Debian Python Modules Team <python-modules-team@lists.alioth.debian.org>
 Uploaders: Matthias Klose <doko@debian.org>,
            Free Ekanayaka <freee@debian.org>
-Build-Depends: debhelper (>=7.0.50~),
+Build-Depends: debhelper (>= 9),
                dh-python,
                patch,
                python-all-dev,
@@ -26,7 +26,7 @@ Build-Depends: debhelper (>=7.0.50~),
                python3-hyperlink,
                python3-doc
 Build-Depends-Indep: python3-sphinx
-Standards-Version: 3.9.8
+Standards-Version: 4.1.0
 Homepage: https://github.com/waylan/Python-Markdown
 Vcs-Browser: https://anonscm.debian.org/cgit/python-modules/packages/twisted.git
 Vcs-Git: https://anonscm.debian.org/git/python-modules/packages/twisted.git

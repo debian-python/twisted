@@ -12,11 +12,11 @@ Bug-Debian https://bugs.debian.org/772629
  src/twisted/web/test/test_web.py | 16 ++++++++--------
  2 files changed, 9 insertions(+), 9 deletions(-)
 
-diff --git a/src/twisted/web/http.py b/src/twisted/web/http.py
-index cbef2ab..35e7229 100644
+Index: b/src/twisted/web/http.py
+===================================================================
 --- a/src/twisted/web/http.py
 +++ b/src/twisted/web/http.py
-@@ -2472,7 +2472,7 @@ def combinedLogFormatter(timestamp, request):
+@@ -2535,7 +2535,7 @@ def combinedLogFormatter(timestamp, requ
      referrer = _escape(request.getHeader(b"referer") or b"-")
      agent = _escape(request.getHeader(b"user-agent") or b"-")
      line = (
@@ -25,11 +25,11 @@ index cbef2ab..35e7229 100644
          u'%(code)d %(length)s "%(referrer)s" "%(agent)s"' % dict(
              ip=_escape(request.getClientIP() or b"-"),
              timestamp=timestamp,
-diff --git a/src/twisted/web/test/test_web.py b/src/twisted/web/test/test_web.py
-index 0418f15..03759f0 100644
+Index: b/src/twisted/web/test/test_web.py
+===================================================================
 --- a/src/twisted/web/test/test_web.py
 +++ b/src/twisted/web/test/test_web.py
-@@ -1183,7 +1183,7 @@ class AccessLogTestsMixin(object):
+@@ -1279,7 +1279,7 @@ class AccessLogTestsMixin(object):
  
          self.assertEqual(
              # Client IP
@@ -38,7 +38,7 @@ index 0418f15..03759f0 100644
              # Some blanks we never fill in
              b'- - '
              # The current time (circa 1234567890)
-@@ -1283,7 +1283,7 @@ class CombinedLogFormatterTests(unittest.TestCase):
+@@ -1372,7 +1372,7 @@ class CombinedLogFormatterTests(unittest
  
          line = http.combinedLogFormatter(timestamp, request)
          self.assertEqual(
@@ -47,7 +47,7 @@ index 0418f15..03759f0 100644
              u'"POS\\x81 /dummy HTTP/1.0" 123 - "evil \\x83" "evil \\x84"',
              line)
  
-@@ -1375,7 +1375,7 @@ class LogEscapingTests(unittest.TestCase):
+@@ -1464,7 +1464,7 @@ class LogEscapingTests(unittest.TestCase
          self.site._logDateTime = "[%02d/%3s/%4d:%02d:%02d:%02d +0000]" % (
              25, 'Oct', 2004, 12, 31, 59)
          self.assertLogs(
@@ -56,7 +56,7 @@ index 0418f15..03759f0 100644
              b'"GET /dummy HTTP/1.0" 123 - "-" "-"\n')
  
  
-@@ -1387,7 +1387,7 @@ class LogEscapingTests(unittest.TestCase):
+@@ -1476,7 +1476,7 @@ class LogEscapingTests(unittest.TestCase
              25, 'Oct', 2004, 12, 31, 59)
          self.request.method = b'G"T'
          self.assertLogs(
@@ -65,7 +65,7 @@ index 0418f15..03759f0 100644
              b'"G\\"T /dummy HTTP/1.0" 123 - "-" "-"\n')
  
  
-@@ -1399,7 +1399,7 @@ class LogEscapingTests(unittest.TestCase):
+@@ -1488,7 +1488,7 @@ class LogEscapingTests(unittest.TestCase
              25, 'Oct', 2004, 12, 31, 59)
          self.request.uri = b'/dummy"withquote'
          self.assertLogs(
@@ -74,7 +74,7 @@ index 0418f15..03759f0 100644
              b'"GET /dummy\\"withquote HTTP/1.0" 123 - "-" "-"\n')
  
  
-@@ -1411,7 +1411,7 @@ class LogEscapingTests(unittest.TestCase):
+@@ -1500,7 +1500,7 @@ class LogEscapingTests(unittest.TestCase
              25, 'Oct', 2004, 12, 31, 59)
          self.request.clientproto = b'HT"P/1.0'
          self.assertLogs(
@@ -83,7 +83,7 @@ index 0418f15..03759f0 100644
              b'"GET /dummy HT\\"P/1.0" 123 - "-" "-"\n')
  
  
-@@ -1426,7 +1426,7 @@ class LogEscapingTests(unittest.TestCase):
+@@ -1515,7 +1515,7 @@ class LogEscapingTests(unittest.TestCase
              b'referer',
              b'http://malicious" ".website.invalid')
          self.assertLogs(
@@ -92,7 +92,7 @@ index 0418f15..03759f0 100644
              b'"GET /dummy HTTP/1.0" 123 - '
              b'"http://malicious\\" \\".website.invalid" "-"\n')
  
-@@ -1441,7 +1441,7 @@ class LogEscapingTests(unittest.TestCase):
+@@ -1530,7 +1530,7 @@ class LogEscapingTests(unittest.TestCase
          self.request.requestHeaders.addRawHeader(b'user-agent',
                                                   b'Malicious Web" Evil')
          self.assertLogs(
