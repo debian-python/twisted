@@ -36,6 +36,7 @@ Architecture: all
 Depends: ${python3:Depends},
          python3-twisted-bin (>= ${source:Version}),
          python3-zope.interface (>= 4.0.2),
+         python3-automat (>= 0.6.0),
          ${misc:Depends},
          python3-openssl, python3-service-identity
 Suggests: python3-tk,
@@ -118,6 +119,7 @@ Architecture: all
 Multi-Arch: foreign
 Depends: python-twisted-bin (>= ${source:Version}),
          python-zope.interface (>= 4.0.2),
+         python-automat (>= 0.6.0),
          ${python:Depends},
          ${misc:Depends},
          python-openssl,

@@ -1,6 +1,6 @@
 Metadata-Version: 1.1
 Name: Twisted
-Version: 17.9.0rc1
+Version: 17.9.0
 Summary: An asynchronous networking framework written in Python
 Home-page: http://twistedmatrix.com/
 Author: Glyph Lefkowitz

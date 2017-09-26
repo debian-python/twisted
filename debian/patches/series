@@ -8,4 +8,6 @@
 0009-no-stderr-in-test_ckeygen.patch
 0010-handle-setlocale-test-failure.patch
 0010-spurious-failure-in-setup-unit-tests.patch
-0011-fix-broken-sslverify-tests.patch
+
+# this is no fix, but just replaces a broken error message with another one.
+#0011-fix-broken-sslverify-tests.patch
