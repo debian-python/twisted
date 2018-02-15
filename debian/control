@@ -67,7 +67,6 @@ Description: Event-based framework for internet applications
  new protocols.
 
 Package: python3-twisted-bin-dbg
-Priority: extra
 Section: debug
 Architecture: any
 Multi-Arch: same
@@ -97,7 +96,6 @@ Description: Event-based framework for internet applications
  new protocols.
 
 Package: python-twisted-bin-dbg
-Priority: extra
 Section: debug
 Architecture: any
 Multi-Arch: same
@@ -238,7 +236,6 @@ Description: twisted dummy package for process management
 
 Package: python-twisted-runner-dbg
 Section: debug
-Priority: extra
 Architecture: all
 Multi-Arch: foreign
 Depends: python-twisted-runner (= ${binary:Version}),
@@ -274,7 +271,6 @@ Description: twisted dummy package for Chat and Instant Messaging
 
 Package: twisted-doc
 Section: doc
-Priority: extra
 Architecture: all
 Multi-Arch: foreign
 Depends: ${misc:Depends},
@@ -291,7 +287,6 @@ Description: Official documentation of Twisted
 
 Package: python-twisted
 Architecture: all
-Priority: extra
 Depends: python-twisted-core (>= ${source:Version}),
          ${python:Depends},
          ${misc:Depends}
