@@ -3,6 +3,7 @@ twisted (17.5.0-2) UNRELEASED; urgency=medium
   * d/control: Set Vcs-* to salsa.debian.org
   * d/control: Deprecating priority extra as per policy 4.0.1
   * d/watch: Use https protocol
+  * d/changelog: Remove trailing whitespaces
 
  -- Ondřej Nový <onovy@debian.org>  Tue, 13 Feb 2018 09:58:32 +0100
 
@@ -418,7 +419,7 @@ twisted (8.1.0-4) unstable; urgency=low
   * Move the cache update from python-twisted into python-twisted-core.
     Closes: #500942.
 
-    Plugins should update the cache on package install (postinst) and 
+    Plugins should update the cache on package install (postinst) and
     removal (postrm remove) by updating the cache. See the postinst
     script of python-twisted-core how to update the cache.
 
@@ -427,7 +428,7 @@ twisted (8.1.0-4) unstable; urgency=low
   * Don't install twisted/test/generator_failure_tests.py, syntax errors
     with python2.4. Closes: #492830.
   * Fix manhole to work with python-gtk2 (>= 2.10). Closes: #469105.
-  * mktap(1) description of options fixed in an earlier version. 
+  * mktap(1) description of options fixed in an earlier version.
     Closes: #278194.
   * mktap news fixed in an earlier version. Closes: #278196.
   * Fix build failure on GNU/kFreeBSD (Petr Salinger). Closes: #490770.
@@ -718,11 +719,11 @@ twisted (1.0.6-1) unstable; urgency=low
   * NMU (encouraged by maintainer)
 
  -- Martin Sjogren <sjogren@debian.org>  Thu,  3 Jul 2003 07:45:27 +0200
- 
+
 twisted (1.0.5-1) unstable; urgency=low
 
   * New upstream version
-  * Remove Python 2.1 packages -- upstream no longer supports 2.1 
+  * Remove Python 2.1 packages -- upstream no longer supports 2.1
 
  -- Moshe Zadka <moshez@debian.org>  Thu,  1 May 2003 09:06:49 +0300
 
@@ -742,25 +743,25 @@ twisted (1.0.3-1) unstable; urgency=low
     * doc-base support
   * Split out doc-api
     * It's HUGE and many people don't need it (since it is available on the
-      web) 
+      web)
 
  -- Moshe Zadka <moshez@debian.org>  Tue, 12 Nov 2002 02:59:56 -0600
 
 twisted (1.0.0-2) unstable; urgency=low
 
-  * Put api docs in api/ (Closes: #167196) 
+  * Put api docs in api/ (Closes: #167196)
 
  -- Moshe Zadka <moshez@debian.org>  Thu,  7 Nov 2002 12:27:37 -0600
 
 twisted (1.0.0-1) unstable; urgency=low
 
-  * New upstream release 
+  * New upstream release
 
  -- Moshe Zadka <moshez@debian.org>  Tue, 22 Oct 2002 06:22:49 -0500
 
 twisted (0.99.2-4) unstable; urgency=low
 
-  * UGH! Python 2.3 distutils bug is back 
+  * UGH! Python 2.3 distutils bug is back
   * Working around it
 
  -- Moshe Zadka <moshez@debian.org>  Wed,  2 Oct 2002 12:07:25 +0000
@@ -773,7 +774,7 @@ twisted (0.99.2-3) unstable; urgency=low
 
 twisted (0.99.2-2) unstable; urgency=low
 
-  * Enabling Python 2.3 support 
+  * Enabling Python 2.3 support
 
  -- Moshe Zadka <moshez@debian.org>  Fri, 27 Sep 2002 10:49:43 -0500
 
@@ -797,7 +798,7 @@ twisted (0.99.0-1) unstable; urgency=low
 
 twisted (0.19.0-2) unstable; urgency=low
 
-  * Gagh, make python2.2-twisted any, not all. 
+  * Gagh, make python2.2-twisted any, not all.
 
  -- Moshe Zadka <moshez@debian.org>  Wed, 31 Jul 2002 02:25:23 -0500
 
@@ -829,14 +830,14 @@ twisted (0.18.0-1) unstable; urgency=low
     * menu support for t-im and manhole enabled
   * Removed debelper
     * Added debian/scripts/ directory with helper scripts
-    * This will (hopefully) mean support python2.3 will be easy 
+    * This will (hopefully) mean support python2.3 will be easy
   * Upstream fixed tcp client (Closes: #142789)
 
  -- Moshe Zadka <moshez@debian.org>  Tue, 28 May 2002 12:35:35 +0300
 
 twisted (0.17.3-1) unstable; urgency=low
 
-  * New upstream release 
+  * New upstream release
 
  -- Moshe Zadka <moshez@debian.org>  Fri, 19 Apr 2002 02:55:43 -0500
 
@@ -851,7 +852,7 @@ twisted (0.17.0-1) unstable; urgency=low
 
 twisted (0.15.5-1) unstable; urgency=low
 
-  * New upstream release 
+  * New upstream release
 
  -- Moshe Zadka <moshez@debian.org>  Fri,  8 Mar 2002 07:14:16 +0200
 
@@ -865,7 +866,7 @@ twisted (0.15.4-1) unstable; urgency=low
 twisted (0.15.3-1) unstable; urgency=low
 
   * New upstream release
-  * Fixed stupidproxy bug, where connections weren't closed 
+  * Fixed stupidproxy bug, where connections weren't closed
 
  -- Moshe Zadka <moshez@debian.org>  Thu, 28 Feb 2002 21:07:28 +0200
 
@@ -883,7 +884,7 @@ twisted (0.15.0-1) unstable; urgency=low
   * SOCKSv4 support
   * bugs fixed in t.i.tcp
   * added approveConnection (again ;-)
-  * All non-blocking methods now return deferreds instead of accepting 
+  * All non-blocking methods now return deferreds instead of accepting
     callbacks (hopefully)
   * low-level protocol changes
   * New t.web applications and features
@@ -894,7 +895,7 @@ twisted (0.15.0-1) unstable; urgency=low
 
 twisted (0.13.0-1) unstable; urgency=low
 
-  * New upstream version 
+  * New upstream version
   * New forum
   * New config interface
   * New metrics
@@ -903,20 +904,20 @@ twisted (0.13.0-1) unstable; urgency=low
 
 twisted (0.12.2-1) unstable; urgency=low
 
-  * New upstream versions (many bugfixes) 
+  * New upstream versions (many bugfixes)
 
  -- Moshe Zadka <moshez@debian.org>  Thu, 29 Nov 2001 08:01:23 +0200
 
 twisted (0.12.1-1) unstable; urgency=low
 
-  * New upstream version (mainly bugfixes) 
+  * New upstream version (mainly bugfixes)
 
  -- Moshe Zadka <moshez@debian.org>  Thu, 22 Nov 2001 09:09:14 +0200
 
 twisted (0.12.0-1) unstable; urgency=low
 
   * New upstream version
-  * Using Python 2.1 
+  * Using Python 2.1
 
  -- Moshe Zadka <moshez@debian.org>  Wed, 21 Nov 2001 15:17:25 +0200
 
@@ -933,7 +934,7 @@ twisted (0.10.2-1) unstable; urgency=low
 
   * New upstream release
   * bug fixes
-  * timeouts for client sockets 
+  * timeouts for client sockets
   * Tutorial about plugins
   * Mail has changed API in an incompatible way
 
@@ -941,14 +942,14 @@ twisted (0.10.2-1) unstable; urgency=low
 
 twisted (0.10.1-1) unstable; urgency=low
 
-  * New upstream release 
+  * New upstream release
   * Massive renaming in prespective broker classes
   * web proxying
   * TCP connection forwarding
   * Lots of new protocols: LDAP, finger and obscure RFCs
   * --plugin option to twistd
   * web widgets
-  * twisted.enterprise improved a lot 
+  * twisted.enterprise improved a lot
 
  -- Moshe Zadka <moshez@debian.org>  Fri, 31 Aug 2001 06:49:00 +0300
 
