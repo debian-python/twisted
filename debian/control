@@ -62,8 +62,8 @@ Depends: ${python3:Depends},
 Provides: ${python:Provides}
 Suggests: python3-twisted-bin-dbg
 Description: Event-based framework for internet applications
- It includes a web server, a telnet server, a multiplayer RPG engine, a 
- generic client and server for remote object access, and APIs for creating 
+ It includes a web server, a telnet server, a multiplayer RPG engine, a
+ generic client and server for remote object access, and APIs for creating
  new protocols.
 
 Package: python3-twisted-bin-dbg
@@ -75,8 +75,8 @@ Depends: python3-zope.interface-dbg,
          python3-dbg, ${shlibs:Depends},
          ${misc:Depends}
 Description: Event-based framework for internet applications (debug extension)
- It includes a web server, a telnet server, a multiplayer RPG engine, a 
- generic client and server for remote object access, and APIs for creating 
+ It includes a web server, a telnet server, a multiplayer RPG engine, a
+ generic client and server for remote object access, and APIs for creating
  new protocols.
  .
  This package contains the extension built for the Python debug interpreter.
@@ -91,8 +91,8 @@ Provides: ${python:Provides}
 Suggests: python-twisted-bin-dbg
 Replaces: python-twisted-runner (<< 15.5.0-3),
 Description: Event-based framework for internet applications
- It includes a web server, a telnet server, a multiplayer RPG engine, a 
- generic client and server for remote object access, and APIs for creating 
+ It includes a web server, a telnet server, a multiplayer RPG engine, a
+ generic client and server for remote object access, and APIs for creating
  new protocols.
 
 Package: python-twisted-bin-dbg
@@ -105,8 +105,8 @@ Depends: python-twisted-bin (= ${binary:Version}),
          ${misc:Depends}
 Replaces: python-twisted-runner-dbg (<< 15.5.0-3),
 Description: Event-based framework for internet applications (debug extension)
- It includes a web server, a telnet server, a multiplayer RPG engine, a 
- generic client and server for remote object access, and APIs for creating 
+ It includes a web server, a telnet server, a multiplayer RPG engine, a
+ generic client and server for remote object access, and APIs for creating
  new protocols.
  .
  This package contains the extension built for the Python debug interpreter.
@@ -175,7 +175,7 @@ Description: Event-based framework for internet applications
 
 Package: python-twisted-conch
 Architecture: all
-Depends: python-twisted-core (>= ${source:Version}), 
+Depends: python-twisted-core (>= ${source:Version}),
          python-crypto (>= 2.0.1+dfsg1-1.1),
          python-pyasn1,
          ${python:Depends},
@@ -281,8 +281,8 @@ Description: Official documentation of Twisted
  This contains various HOWTOs and overviews in various formats
  .
  Twisted is an event-based framework for internet applications.
- It includes a web server, a telnet server, a multiplayer RPG engine, a 
- generic client and server for remote object access, and APIs for creating 
+ It includes a web server, a telnet server, a multiplayer RPG engine, a
+ generic client and server for remote object access, and APIs for creating
  new protocols.
 
 Package: python-twisted
