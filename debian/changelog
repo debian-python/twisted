@@ -1,10 +1,14 @@
 twisted (17.5.0-2) UNRELEASED; urgency=medium
 
+  [ Ondřej Nový ]
   * d/control: Set Vcs-* to salsa.debian.org
   * d/control: Deprecating priority extra as per policy 4.0.1
   * d/watch: Use https protocol
   * d/changelog: Remove trailing whitespaces
   * d/control: Remove trailing whitespaces
+
+  [ Colin Watson ]
+  * Fix conch MSG_DEBUG parsing on Python 2 (closes: #895374).
 
  -- Ondřej Nový <onovy@debian.org>  Tue, 13 Feb 2018 09:58:32 +0100
 
