@@ -10,6 +10,7 @@ twisted (17.5.0-2) UNRELEASED; urgency=medium
 
   [ Colin Watson ]
   * Fix conch MSG_DEBUG parsing on Python 2 (closes: #895374).
+  * Fix incorrect Homepage field (closes: #866642).
 
  -- Ondřej Nový <onovy@debian.org>  Tue, 13 Feb 2018 09:58:32 +0100
 
