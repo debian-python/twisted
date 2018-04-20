@@ -1,0 +1,45 @@
+From: Colin Watson <cjwatson@debian.org>
+Date: Sat, 14 Apr 2018 01:11:00 +0100
+Subject: Fix conch MSG_DEBUG parsing on Python 2
+
+bool(b'\x00...'[0]) returns True, which isn't what's needed here.
+
+Origin: upstream, https://github.com/twisted/twisted/pull/998
+Bug: https://twistedmatrix.com/trac/ticket/9422
+Bug-Debian: https://bugs.debian.org/895374
+---
+ src/twisted/conch/ssh/transport.py       | 2 +-
+ src/twisted/conch/test/test_transport.py | 7 ++++++-
+ 2 files changed, 7 insertions(+), 2 deletions(-)
+
+diff --git a/src/twisted/conch/ssh/transport.py b/src/twisted/conch/ssh/transport.py
+index f5f85a1..b01ad42 100644
+--- a/src/twisted/conch/ssh/transport.py
++++ b/src/twisted/conch/ssh/transport.py
+@@ -960,7 +960,7 @@ class SSHTransportBase(protocol.Protocol):
+         @type packet: L{bytes}
+         @param packet: The message data.
+         """
+-        alwaysDisplay = bool(packet[0])
++        alwaysDisplay = bool(ord(packet[0:1]))
+         message, lang, foo = getNS(packet[1:], 2)
+         self.receiveDebug(alwaysDisplay, message, lang)
+ 
+diff --git a/src/twisted/conch/test/test_transport.py b/src/twisted/conch/test/test_transport.py
+index ac5ce30..fbe2b7d 100644
+--- a/src/twisted/conch/test/test_transport.py
++++ b/src/twisted/conch/test/test_transport.py
+@@ -774,7 +774,12 @@ class BaseSSHTransportTests(BaseSSHTransportBaseCase, TransportTestCase):
+         self.proto.dispatchMessage(
+             transport.MSG_DEBUG,
+             b'\x01\x00\x00\x00\x04test\x00\x00\x00\x02en')
+-        self.assertEqual(self.proto.debugs, [(True, b'test', b'en')])
++        self.proto.dispatchMessage(
++            transport.MSG_DEBUG,
++            b'\x00\x00\x00\x00\x06silent\x00\x00\x00\x02en')
++        self.assertEqual(
++            self.proto.debugs,
++            [(True, b'test', b'en'), (False, b'silent', b'en')])
+ 
+ 
+     def test_sendIgnore(self):
