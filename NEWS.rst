@@ -3,8 +3,8 @@ http://twistedmatrix.com/trac/ticket/<number>
 
 .. towncrier release notes start
 
-Twisted 17.9.0rc1 (2017-09-04)
-==============================
+Twisted 17.9.0 (2017-09-23)
+===========================
 
 Features
 --------
