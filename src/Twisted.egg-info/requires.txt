@@ -9,16 +9,16 @@ pyopenssl >= 16.0.0
 service_identity
 idna >= 0.6, != 2.3
 pyasn1
-cryptography >= 0.9.1
+cryptography >= 1.5
 appdirs >= 1.4.0
 soappy
-pyserial
+pyserial >= 3.0
 h2 >= 3.0, < 4.0
 priority >= 1.1.0, < 2.0
 
 [conch]
 pyasn1
-cryptography >= 0.9.1
+cryptography >= 1.5
 appdirs >= 1.4.0
 
 [dev]
@@ -42,15 +42,15 @@ pyopenssl >= 16.0.0
 service_identity
 idna >= 0.6, != 2.3
 pyasn1
-cryptography >= 0.9.1
+cryptography >= 1.5
 appdirs >= 1.4.0
 soappy
-pyserial
+pyserial >= 3.0
 h2 >= 3.0, < 4.0
 priority >= 1.1.0, < 2.0
 
 [serial]
-pyserial
+pyserial >= 3.0
 
 [soap]
 soappy
@@ -66,9 +66,9 @@ pyopenssl >= 16.0.0
 service_identity
 idna >= 0.6, != 2.3
 pyasn1
-cryptography >= 0.9.1
+cryptography >= 1.5
 appdirs >= 1.4.0
 soappy
-pyserial
+pyserial >= 3.0
 h2 >= 3.0, < 4.0
 priority >= 1.1.0, < 2.0
