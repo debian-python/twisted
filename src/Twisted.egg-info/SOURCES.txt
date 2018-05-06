@@ -824,6 +824,7 @@ src/twisted/internet/test/process_helper.py
 src/twisted/internet/test/reactormixins.py
 src/twisted/internet/test/test_abstract.py
 src/twisted/internet/test/test_address.py
+src/twisted/internet/test/test_asyncioreactor.py
 src/twisted/internet/test/test_base.py
 src/twisted/internet/test/test_baseprocess.py
 src/twisted/internet/test/test_core.py
