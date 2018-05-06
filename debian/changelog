@@ -1,3 +1,11 @@
+twisted (18.4.0-1) unstable; urgency=medium
+
+  * New upstream version 18.4.0
+  * Add .travis.yml for CI on Travis (will need to be moved to Salsa)
+  * Remove myself from Uploaders
+
+ -- Free Ekanayaka <freee@debian.org>  Sun, 06 May 2018 09:19:29 +0000
+
 twisted (17.9.0-2) unstable; urgency=medium
 
   * Team upload.
