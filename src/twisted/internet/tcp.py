@@ -18,7 +18,7 @@ import struct
 
 from zope.interface import implementer
 
-from twisted.python.compat import _PY3, lazyByteSlice
+from twisted.python.compat import lazyByteSlice, unicode
 from twisted.python.runtime import platformType
 from twisted.python import versions, deprecate
 
@@ -94,10 +94,7 @@ _AI_NUMERICSERV = getattr(socket, "AI_NUMERICSERV", 0)
 
 
 # The type for service names passed to socket.getservbyname:
-if _PY3:
-    _portNameType = str
-else:
-    _portNameType = (str, unicode)
+_portNameType = (str, unicode)
 
 
 
@@ -1056,7 +1053,7 @@ class Port(base.BasePort, _SocketCloser):
                         # returns a connection that fails as though the it were
                         # terminated after being fully established.  This
                         # appears to be an implementation choice (see
-                        # inet_accept in inet/ipv4/af_inet.c).  On macOS X,
+                        # inet_accept in inet/ipv4/af_inet.c).  On macOS,
                         # such a listener is not considered readable, so
                         # accept(2) will never be called.  Calling accept(2) on
                         # such a listener, however, does not return at all.
